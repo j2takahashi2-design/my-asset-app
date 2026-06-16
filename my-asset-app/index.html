@@ -255,7 +255,7 @@ tr:hover td{background:var(--sf2);}
     </div>
     <div class="seg-grid">
       <div class="seg-card">
-        <div class="seg-title">📂 コア・グロース・サテライト</div>
+        <div class="seg-title">📂 コア・グロース・サテライト <small style="font-weight:400;opacity:.6;">現金除く</small></div>
         <div id="cgsTable"></div>
       </div>
       <div class="seg-card">
@@ -263,7 +263,7 @@ tr:hover td{background:var(--sf2);}
         <div id="sectorTable"></div>
       </div>
       <div class="seg-card">
-        <div class="seg-title">💱 通貨別</div>
+        <div class="seg-title">💱 通貨別 <small style="font-weight:400;opacity:.6;">現金除く</small></div>
         <div id="currencyTable"></div>
       </div>
     </div>
@@ -754,10 +754,13 @@ function renderAnalysis(){
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#8b949e',font:{size:11}},grid:{color:'#30363d'}},y:{ticks:{color:'#8b949e',font:{size:11},callback:v=>'¥'+Math.round(v/10000)+'万'},grid:{color:'#30363d'}}}}
   });
 
-  // CGS集計
+  // CGS集計（現金・MRFを除外）
   const cgs={core:0,growth:0,satellite:0,'':0};
-  assets.forEach(a=>cgs[a.tag||'']=(cgs[a.tag||'']||0)+a.value);
-  const total=assets.reduce((s,a)=>s+a.value,0);
+  assets.forEach(a=>{
+    if(a.category==='bank')return; // 現金除外
+    cgs[a.tag||'']=(cgs[a.tag||'']||0)+a.value;
+  });
+  const total=assets.filter(a=>a.category!=='bank').reduce((s,a)=>s+a.value,0);
   const cgsEl=document.getElementById('cgsTable');
   const cgsItems=[['コア','core','#58a6ff'],['グロース','growth','#3fb950'],['サテライト','satellite','#a371f7'],['未分類','','#484f58']];
   cgsEl.innerHTML=cgsItems.map(([label,key,color])=>`<div class="seg-row"><span class="seg-label" style="color:${color}">${label}</span><span class="seg-val">${fmt(cgs[key]||0)} <small style="color:var(--tx2)">${total>0?((cgs[key]||0)/total*100).toFixed(1):0}%</small></span></div>`).join('');
@@ -769,15 +772,21 @@ function renderAnalysis(){
     options:{responsive:true,maintainAspectRatio:false,cutout:'60%',plugins:{legend:{position:'bottom',labels:{color:'#8b949e',font:{size:11},padding:8,boxWidth:9}}}}
   });
 
-  // セクター集計
+  // セクター集計（現金除外）
   const sectors={};
-  assets.forEach(a=>{const s=a.sector||'未分類';sectors[s]=(sectors[s]||0)+a.value;});
+  assets.forEach(a=>{
+    if(a.category==='bank')return;
+    const s=a.sector||'未分類';sectors[s]=(sectors[s]||0)+a.value;
+  });
   const sectorEl=document.getElementById('sectorTable');
   sectorEl.innerHTML=Object.entries(sectors).sort((a,b)=>b[1]-a[1]).map(([s,v])=>`<div class="seg-row"><span class="seg-label">${s}</span><span class="seg-val">${fmt(v)} <small style="color:var(--tx2)">${total>0?(v/total*100).toFixed(1):0}%</small></span></div>`).join('');
 
-  // 通貨別集計
+  // 通貨別集計（現金除外）
   let jpy=0,usd=0;
-  assets.forEach(a=>{if(a.category==='us')usd+=a.value;else jpy+=a.value;});
+  assets.forEach(a=>{
+    if(a.category==='bank')return;
+    if(a.category==='us')usd+=a.value;else jpy+=a.value;
+  });
   const currencyEl=document.getElementById('currencyTable');
   currencyEl.innerHTML=[['円 (JPY)',jpy,'#e3b341'],['ドル換算 (USD)',usd,'#58a6ff']].map(([l,v,c])=>`<div class="seg-row"><span class="seg-label" style="color:${c}">${l}</span><span class="seg-val">${fmt(v)} <small style="color:var(--tx2)">${total>0?(v/total*100).toFixed(1):0}%</small></span></div>`).join('');
 
