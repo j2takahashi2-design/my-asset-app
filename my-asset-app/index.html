@@ -715,6 +715,29 @@ function render(){
   const cp=t.crypto.v-t.crypto.c;upd('mCrypto',fmt(t.crypto.v));upd('mCryptoP',cp===0?'—':sign(cp)+fmt(cp),pcls(cp));
   if(pieChart)pieChart.destroy();
   const pieTotal=t.stock.v+t.fund.v+t.bank.v+t.crypto.v;
+  // グラフに直接ラベルを描画するカスタムプラグイン
+  const pieLabelPlugin={
+    id:'pieLabels',
+    afterDatasetsDraw(chart){
+      const {ctx,data}=chart;
+      chart.data.datasets.forEach((dataset,di)=>{
+        chart.getDatasetMeta(di).data.forEach((arc,i)=>{
+          const v=dataset.data[i];
+          if(!v||v===0)return;
+          const pct=pieTotal>0?(v/pieTotal*100).toFixed(1):0;
+          if(parseFloat(pct)<3)return; // 小さすぎるセグメントは省略
+          const {x,y}=arc.tooltipPosition();
+          ctx.save();
+          ctx.fillStyle='#fff';
+          ctx.font='bold 11px Inter, sans-serif';
+          ctx.textAlign='center';
+          ctx.textBaseline='middle';
+          ctx.fillText(pct+'%', x, y);
+          ctx.restore();
+        });
+      });
+    }
+  };
   pieChart=new Chart(document.getElementById('pieChart'),{
     type:'doughnut',
     data:{
@@ -729,21 +752,36 @@ function render(){
       responsive:true,maintainAspectRatio:false,cutout:'62%',
       plugins:{
         legend:{position:'bottom',labels:{color:'#8b949e',font:{size:11},padding:10,boxWidth:10}},
-        tooltip:{
-          callbacks:{
-            label:ctx=>{
-              const v=ctx.parsed;
-              const pct=pieTotal>0?(v/pieTotal*100).toFixed(1):0;
-              return ` ${ctx.label}: ¥${Math.round(v).toLocaleString('ja-JP')} (${pct}%)`;
-            }
-          }
-        }
+        tooltip:{callbacks:{label:ctx=>{const v=ctx.parsed;const pct=pieTotal>0?(v/pieTotal*100).toFixed(1):0;return ` ¥${Math.round(v).toLocaleString('ja-JP')} (${pct}%)`;}}}
       }
-    }
+    },
+    plugins:[pieLabelPlugin]
   });
   if(barChart)barChart.destroy();
   const pd=[t.stock.v-t.stock.c,t.fund.v-t.fund.c,t.crypto.v-t.crypto.c];
   const pdLabels=['株','投信','仮想通貨'];
+  const barLabelPlugin={
+    id:'barLabels',
+    afterDatasetsDraw(chart){
+      const {ctx,data}=chart;
+      chart.data.datasets.forEach((ds,di)=>{
+        chart.getDatasetMeta(di).data.forEach((bar,i)=>{
+          const v=ds.data[i];
+          if(v===0)return;
+          const x=bar.x;
+          const y=v>=0?bar.y-6:bar.y+14;
+          ctx.save();
+          ctx.fillStyle=v>=0?'#3fb950':'#f78166';
+          ctx.font='bold 11px Inter,sans-serif';
+          ctx.textAlign='center';
+          ctx.textBaseline='middle';
+          const label=(v>=0?'+':'')+'¥'+Math.round(v/10000)+'万';
+          ctx.fillText(label,x,y);
+          ctx.restore();
+        });
+      });
+    }
+  };
   barChart=new Chart(document.getElementById('barChart'),{
     type:'bar',
     data:{
@@ -756,15 +794,14 @@ function render(){
     },
     options:{
       responsive:true,maintainAspectRatio:false,
-      plugins:{
-        legend:{display:false},
-        datalabels:{display:false}
-      },
+      layout:{padding:{top:20}},
+      plugins:{legend:{display:false}},
       scales:{
         x:{ticks:{color:'#8b949e',font:{size:11}},grid:{color:'#30363d'}},
         y:{ticks:{color:'#8b949e',font:{size:11},callback:v=>'¥'+Math.round(v/10000)+'万'},grid:{color:'#30363d'}}
       }
-    }
+    },
+    plugins:[barLabelPlugin]
   });
   renderTable();
   renderCash();
@@ -858,14 +895,17 @@ function renderAnalysis(){
 
   if(cgsChart)cgsChart.destroy();
   const cgsTotal2=Object.values(cgs).reduce((s,v)=>s+v,0);
+  const cgsLabelPlugin={id:'cgsLabels',afterDatasetsDraw(chart){const {ctx,data}=chart;chart.data.datasets.forEach((ds,di)=>{chart.getDatasetMeta(di).data.forEach((arc,i)=>{const v=ds.data[i];if(!v||v===0)return;const pct=cgsTotal2>0?(v/cgsTotal2*100).toFixed(1):0;if(parseFloat(pct)<4)return;const {x,y}=arc.tooltipPosition();ctx.save();ctx.fillStyle='#fff';ctx.font='bold 11px Inter,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(pct+'%',x,y);ctx.restore();});});}}; 
   cgsChart=new Chart(document.getElementById('cgsChart'),{
     type:'doughnut',
     data:{labels:['コア','グロース','サテライト','未分類'],datasets:[{data:[cgs.core||0,cgs.growth||0,cgs.satellite||0,cgs['']||0],backgroundColor:['#58a6ff','#3fb950','#a371f7','#484f58'],borderColor:'#161b22',borderWidth:3}]},
     options:{responsive:true,maintainAspectRatio:false,cutout:'60%',
       plugins:{
         legend:{position:'bottom',labels:{color:'#8b949e',font:{size:11},padding:8,boxWidth:9}},
-        tooltip:{callbacks:{label:ctx=>{const v=ctx.parsed;const pct=cgsTotal2>0?(v/cgsTotal2*100).toFixed(1):0;return ` ${ctx.label}: ¥${Math.round(v).toLocaleString('ja-JP')} (${pct}%)`;}}}}
-    }
+        tooltip:{callbacks:{label:ctx=>{const v=ctx.parsed;const pct=cgsTotal2>0?(v/cgsTotal2*100).toFixed(1):0;return ` ¥${Math.round(v).toLocaleString('ja-JP')} (${pct}%)`;}}}
+      }
+    },
+    plugins:[cgsLabelPlugin]
   });
 
   // セクター集計（現金除外）
@@ -888,14 +928,17 @@ function renderAnalysis(){
 
   if(currencyChart)currencyChart.destroy();
   const currTotal=jpy+usd;
+  const currLabelPlugin={id:'currLabels',afterDatasetsDraw(chart){const {ctx}=chart;chart.data.datasets.forEach((ds,di)=>{chart.getDatasetMeta(di).data.forEach((arc,i)=>{const v=ds.data[i];if(!v||v===0)return;const pct=currTotal>0?(v/currTotal*100).toFixed(1):0;if(parseFloat(pct)<4)return;const {x,y}=arc.tooltipPosition();ctx.save();ctx.fillStyle='#fff';ctx.font='bold 11px Inter,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(pct+'%',x,y);ctx.restore();});});}}; 
   currencyChart=new Chart(document.getElementById('currencyChart'),{
     type:'doughnut',
     data:{labels:['円 (JPY)','ドル換算 (USD)'],datasets:[{data:[jpy,usd],backgroundColor:['#e3b341','#58a6ff'],borderColor:'#161b22',borderWidth:3}]},
     options:{responsive:true,maintainAspectRatio:false,cutout:'60%',
       plugins:{
         legend:{position:'bottom',labels:{color:'#8b949e',font:{size:11},padding:8,boxWidth:9}},
-        tooltip:{callbacks:{label:ctx=>{const v=ctx.parsed;const pct=currTotal>0?(v/currTotal*100).toFixed(1):0;return ` ${ctx.label}: ¥${Math.round(v).toLocaleString('ja-JP')} (${pct}%)`;}}}}
-    }
+        tooltip:{callbacks:{label:ctx=>{const v=ctx.parsed;const pct=currTotal>0?(v/currTotal*100).toFixed(1):0;return ` ¥${Math.round(v).toLocaleString('ja-JP')} (${pct}%)`;}}}
+      }
+    },
+    plugins:[currLabelPlugin]
   });
 }
 
