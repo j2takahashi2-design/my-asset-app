@@ -170,6 +170,7 @@ tr:hover td{background:var(--sf2);}
   <div class="hdr-right">
     <span class="hdate" id="hdate"></span>
     <button class="hbtn" onclick="refreshAll()">🔄 株価一括更新</button>
+    <button class="hbtn" onclick="openThemeSettings()">⚙️ テーマ設定</button>
     <button class="hbtn hbtn-ac" onclick="openGoal()">🎯 目標設定</button>
   </div>
 </header>
@@ -481,57 +482,134 @@ tr:hover td{background:var(--sf2);}
   </div>
 </div>
 
+<!-- THEME SETTINGS MODAL -->
+<div class="modal-ov" id="themeModal">
+  <div class="modal">
+    <h2>⚙️ 投資テーマ設定</h2>
+    <p style="font-size:12px;color:var(--tx2);margin-bottom:14px;">テーマ名を自由に編集できます。変更すると既存の銘柄タグも自動で更新されます。</p>
+    <div id="themeEditList"></div>
+    <div style="margin-top:12px;display:flex;gap:8px;align-items:center;">
+      <input id="newThemeName" type="text" placeholder="新しいテーマ名" style="flex:1;background:var(--bg);border:1px solid var(--bd);color:var(--tx);font-size:13px;padding:7px 10px;border-radius:7px;outline:none;font-family:inherit;">
+      <button class="mbtn mbtn-p" style="flex:0 0 auto;padding:7px 14px;" onclick="addTheme()">＋ 追加</button>
+    </div>
+    <div class="macts">
+      <button class="mbtn mbtn-s" onclick="closeThemeModal()">閉じる</button>
+      <button class="mbtn mbtn-p" onclick="saveThemes()">保存する</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const FX=159.5;
 const ACCOUNTS=['野村','野村 NISA','野村 つみたて','野村 NISA成長','moomoo','その他'];
 
 const INIT=[
-  {name:'ソニーグループ',category:'jp',ticker:'6758',shares:200,avgCost:3210,currentPrice:3299,cost:642000,value:659800,note:'野村',earnings:'',tag:'',sector:'テクノロジー'},
-  {name:'トヨタ自動車',category:'jp',ticker:'7203',shares:500,avgCost:1354,currentPrice:2905.5,cost:677000,value:1452750,note:'野村',earnings:'',tag:'core',sector:'一般消費財'},
-  {name:'Synspective',category:'jp',ticker:'290A',shares:300,avgCost:1383,currentPrice:1312,cost:414900,value:393600,note:'野村 NISA',earnings:'',tag:'satellite',sector:'テクノロジー'},
-  {name:'ミネベアミツミ',category:'jp',ticker:'6479',shares:100,avgCost:2897,currentPrice:4486,cost:289700,value:448600,note:'野村 NISA',earnings:'',tag:'growth',sector:'資本財'},
-  {name:'キッツ',category:'jp',ticker:'6498',shares:300,avgCost:1724,currentPrice:2512,cost:517200,value:753600,note:'野村 NISA',earnings:'',tag:'growth',sector:'資本財'},
-  {name:'TDK',category:'jp',ticker:'6762',shares:200,avgCost:2960,currentPrice:3906,cost:592000,value:781200,note:'moomoo',earnings:'',tag:'growth',sector:'テクノロジー'},
+  {name:'ソニーグループ',category:'jp',ticker:'6758',shares:200,avgCost:3210,currentPrice:3299,cost:642000,value:659800,note:'野村',earnings:'',tag:'',sector:'エレクトロニクス'},
+  {name:'トヨタ自動車',category:'jp',ticker:'7203',shares:500,avgCost:1354,currentPrice:2905.5,cost:677000,value:1452750,note:'野村',earnings:'',tag:'core',sector:'工業'},
+  {name:'Synspective',category:'jp',ticker:'290A',shares:300,avgCost:1383,currentPrice:1312,cost:414900,value:393600,note:'野村 NISA',earnings:'',tag:'satellite',sector:'宇宙・防衛'},
+  {name:'ミネベアミツミ',category:'jp',ticker:'6479',shares:100,avgCost:2897,currentPrice:4486,cost:289700,value:448600,note:'野村 NISA',earnings:'',tag:'growth',sector:'FA'},
+  {name:'キッツ',category:'jp',ticker:'6498',shares:300,avgCost:1724,currentPrice:2512,cost:517200,value:753600,note:'野村 NISA',earnings:'',tag:'growth',sector:'FA'},
+  {name:'TDK',category:'jp',ticker:'6762',shares:200,avgCost:2960,currentPrice:3906,cost:592000,value:781200,note:'moomoo',earnings:'',tag:'growth',sector:'エレクトロニクス'},
   {name:'NEXT FUNDS 東証銀行業ETF',category:'jp',ticker:'1615',shares:600,avgCost:682,currentPrice:713.5,cost:409200,value:428100,note:'moomoo',earnings:'',tag:'core',sector:'金融'},
-  {name:'日本電気(NEC)',category:'jp',ticker:'6701',shares:100,avgCost:4208,currentPrice:3847,cost:420800,value:384700,note:'moomoo',earnings:'',tag:'growth',sector:'テクノロジー'},
-  {name:'キャピタル世界株式F（成長）',category:'fund',ticker:'',shares:419581,avgCost:0,currentPrice:41380,cost:1400015,value:1736226,note:'野村 NISA成長',earnings:'',tag:'core',sector:'投資信託'},
-  {name:'キャピタル世界株式F（つみたて）',category:'fund',ticker:'',shares:742881,avgCost:0,currentPrice:41380,cost:1215204,value:3074041,note:'野村 NISA',earnings:'',tag:'core',sector:'投資信託'},
-  {name:'eMAXIS Slim 国内株式(TOPIX)',category:'fund',ticker:'',shares:7975,avgCost:0,currentPrice:30882,cost:25000,value:24628,note:'野村 つみたて',earnings:'',tag:'core',sector:'ETF・インデックス'},
-  {name:'eMAXIS Slim 全世界株式(オルカン)',category:'fund',ticker:'',shares:26915,avgCost:0,currentPrice:37147,cost:100002,value:99981,note:'野村 つみたて',earnings:'',tag:'core',sector:'ETF・インデックス'},
-  {name:'つみたて8資産均等バランス',category:'fund',ticker:'',shares:36203,avgCost:0,currentPrice:20790,cost:75001,value:75266,note:'野村 つみたて',earnings:'',tag:'core',sector:'投資信託'},
-  {name:'たわらノーロード ロボット・テクノロジー',category:'fund',ticker:'',shares:211161,avgCost:0,currentPrice:0,cost:814000,value:903389,note:'moomoo',earnings:'',tag:'satellite',sector:'テクノロジー'},
-  {name:'iFreeNEXT NASDAQ100インデックス',category:'fund',ticker:'',shares:112128,avgCost:0,currentPrice:0,cost:622500,value:634600,note:'moomoo',earnings:'',tag:'core',sector:'ETF・インデックス'},
-  {name:'iFreePlus 世界トレンド・テクノロジー株',category:'fund',ticker:'',shares:387512,avgCost:0,currentPrice:0,cost:580000,value:572084,note:'moomoo',earnings:'',tag:'growth',sector:'テクノロジー'},
-  {name:'eMAXIS Slim 全世界株式(moomoo)',category:'fund',ticker:'',shares:110929,avgCost:0,currentPrice:0,cost:405000,value:416949,note:'moomoo',earnings:'',tag:'core',sector:'ETF・インデックス'},
-  {name:'eMAXIS Neo 宇宙開発',category:'fund',ticker:'',shares:3678,avgCost:0,currentPrice:0,cost:20000,value:22279,note:'moomoo',earnings:'',tag:'satellite',sector:'テクノロジー'},
-  {name:'野村MRF',category:'bank',ticker:'',shares:0,avgCost:0,currentPrice:0,cost:1110230,value:1110230,note:'野村',earnings:'',tag:'',sector:''},
-  {name:'エヌビディア',category:'us',ticker:'NVDA',shares:40,avgCost:214.66,currentPrice:212.188,cost:Math.round(40*214.66*FX),value:Math.round(40*212.188*FX),note:'moomoo',fxRate:FX,earnings:'',tag:'growth',sector:'テクノロジー'},
-  {name:'ブロードコム',category:'us',ticker:'AVGO',shares:20,avgCost:421.74,currentPrice:394.725,cost:Math.round(20*421.74*FX),value:Math.round(20*394.725*FX),note:'moomoo',fxRate:FX,earnings:'',tag:'growth',sector:'テクノロジー'},
-  {name:'アンフェノール',category:'us',ticker:'APH',shares:35,avgCost:130.8,currentPrice:158.795,cost:Math.round(35*130.8*FX),value:Math.round(35*158.795*FX),note:'moomoo',fxRate:FX,earnings:'',tag:'growth',sector:'テクノロジー'},
-  {name:'金融セレクトSPDR(XLF)',category:'us',ticker:'XLF',shares:80,avgCost:52.31,currentPrice:53.581,cost:Math.round(80*52.31*FX),value:Math.round(80*53.581*FX),note:'moomoo',fxRate:FX,earnings:'',tag:'core',sector:'ETF・インデックス'},
-  {name:'ノースロップ・グラマン',category:'us',ticker:'NOC',shares:7,avgCost:555.94,currentPrice:544.73,cost:Math.round(7*555.94*FX),value:Math.round(7*544.73*FX),note:'moomoo',fxRate:FX,earnings:'',tag:'satellite',sector:'資本財'},
-  {name:'ネクステラ・エナジー',category:'us',ticker:'NEE',shares:40,avgCost:91.88,currentPrice:86.28,cost:Math.round(40*91.88*FX),value:Math.round(40*86.28*FX),note:'moomoo',fxRate:FX,earnings:'',tag:'growth',sector:'公益'},
-  {name:'トリンブル',category:'us',ticker:'TRMB',shares:40,avgCost:57.09,currentPrice:50.35,cost:Math.round(40*57.09*FX),value:Math.round(40*50.35*FX),note:'moomoo',fxRate:FX,earnings:'',tag:'growth',sector:'テクノロジー'},
-  {name:'インテュイット',category:'us',ticker:'INTU',shares:7,avgCost:312.12,currentPrice:281.73,cost:Math.round(7*312.12*FX),value:Math.round(7*281.73*FX),note:'moomoo',fxRate:FX,earnings:'',tag:'growth',sector:'テクノロジー'},
+  {name:'日本電気(NEC)',category:'jp',ticker:'6701',shares:100,avgCost:4208,currentPrice:3847,cost:420800,value:384700,note:'moomoo',earnings:'',tag:'growth',sector:'エレクトロニクス'},
+  {name:'キャピタル世界株式F（成長）',category:'fund',ticker:'',shares:419581,avgCost:0,currentPrice:41380,cost:1400015,value:1736226,note:'野村 NISA成長',earnings:'',tag:'core',sector:'インデックス'},
+  {name:'キャピタル世界株式F（つみたて）',category:'fund',ticker:'',shares:742881,avgCost:0,currentPrice:41380,cost:1215204,value:3074041,note:'野村 NISA',earnings:'',tag:'core',sector:'インデックス'},
+  {name:'eMAXIS Slim 国内株式(TOPIX)',category:'fund',ticker:'',shares:7975,avgCost:0,currentPrice:30882,cost:25000,value:24628,note:'野村 つみたて',earnings:'',tag:'core',sector:'インデックス'},
+  {name:'eMAXIS Slim 全世界株式(オルカン)',category:'fund',ticker:'',shares:26915,avgCost:0,currentPrice:37147,cost:100002,value:99981,note:'野村 つみたて',earnings:'',tag:'core',sector:'インデックス'},
+  {name:'つみたて8資産均等バランス',category:'fund',ticker:'',shares:36203,avgCost:0,currentPrice:20790,cost:75001,value:75266,note:'野村 つみたて',earnings:'',tag:'core',sector:'インデックス'},
+  {name:'たわらノーロード ロボット・テクノロジー',category:'fund',ticker:'',shares:211161,avgCost:0,currentPrice:0,cost:814000,value:903389,note:'moomoo',earnings:'',tag:'satellite',sector:'AI'},
+  {name:'iFreeNEXT NASDAQ100インデックス',category:'fund',ticker:'',shares:112128,avgCost:0,currentPrice:0,cost:622500,value:634600,note:'moomoo',earnings:'',tag:'core',sector:'インデックス'},
+  {name:'iFreePlus 世界トレンド・テクノロジー株',category:'fund',ticker:'',shares:387512,avgCost:0,currentPrice:0,cost:580000,value:572084,note:'moomoo',earnings:'',tag:'growth',sector:'AI'},
+  {name:'eMAXIS Slim 全世界株式(moomoo)',category:'fund',ticker:'',shares:110929,avgCost:0,currentPrice:0,cost:405000,value:416949,note:'moomoo',earnings:'',tag:'core',sector:'インデックス'},
+  {name:'eMAXIS Neo 宇宙開発',category:'fund',ticker:'',shares:3678,avgCost:0,currentPrice:0,cost:20000,value:22279,note:'moomoo',earnings:'',tag:'satellite',sector:'宇宙・防衛'},
+  {name:'野村MRF',category:'bank',ticker:'',shares:0,avgCost:0,currentPrice:0,cost:1110230,value:1110230,note:'野村',earnings:'',tag:'',sector:'現金'},
+  {name:'エヌビディア',category:'us',ticker:'NVDA',shares:40,avgCost:214.66,currentPrice:212.188,cost:Math.round(40*214.66*FX),value:Math.round(40*212.188*FX),note:'moomoo',fxRate:FX,earnings:'',tag:'growth',sector:'AI'},
+  {name:'ブロードコム',category:'us',ticker:'AVGO',shares:20,avgCost:421.74,currentPrice:394.725,cost:Math.round(20*421.74*FX),value:Math.round(20*394.725*FX),note:'moomoo',fxRate:FX,earnings:'',tag:'growth',sector:'AI'},
+  {name:'アンフェノール',category:'us',ticker:'APH',shares:35,avgCost:130.8,currentPrice:158.795,cost:Math.round(35*130.8*FX),value:Math.round(35*158.795*FX),note:'moomoo',fxRate:FX,earnings:'',tag:'growth',sector:'FA'},
+  {name:'金融セレクトSPDR(XLF)',category:'us',ticker:'XLF',shares:80,avgCost:52.31,currentPrice:53.581,cost:Math.round(80*52.31*FX),value:Math.round(80*53.581*FX),note:'moomoo',fxRate:FX,earnings:'',tag:'core',sector:'金融'},
+  {name:'ノースロップ・グラマン',category:'us',ticker:'NOC',shares:7,avgCost:555.94,currentPrice:544.73,cost:Math.round(7*555.94*FX),value:Math.round(7*544.73*FX),note:'moomoo',fxRate:FX,earnings:'',tag:'satellite',sector:'宇宙・防衛'},
+  {name:'ネクステラ・エナジー',category:'us',ticker:'NEE',shares:40,avgCost:91.88,currentPrice:86.28,cost:Math.round(40*91.88*FX),value:Math.round(40*86.28*FX),note:'moomoo',fxRate:FX,earnings:'',tag:'growth',sector:'エネルギー'},
+  {name:'トリンブル',category:'us',ticker:'TRMB',shares:40,avgCost:57.09,currentPrice:50.35,cost:Math.round(40*57.09*FX),value:Math.round(40*50.35*FX),note:'moomoo',fxRate:FX,earnings:'',tag:'growth',sector:'FA'},
+  {name:'インテュイット',category:'us',ticker:'INTU',shares:7,avgCost:312.12,currentPrice:281.73,cost:Math.round(7*312.12*FX),value:Math.round(7*281.73*FX),note:'moomoo',fxRate:FX,earnings:'',tag:'growth',sector:'AI'},
   {name:'エネルギーSPDR(XLE)',category:'us',ticker:'XLE',shares:30,avgCost:57.84,currentPrice:55.699,cost:Math.round(30*57.84*FX),value:Math.round(30*55.699*FX),note:'moomoo',fxRate:FX,earnings:'',tag:'satellite',sector:'エネルギー'},
-  {name:'オーロラ・イノベーション',category:'us',ticker:'AUR',shares:250,avgCost:6.75,currentPrice:6.4,cost:Math.round(250*6.75*FX),value:Math.round(250*6.4*FX),note:'moomoo',fxRate:FX,earnings:'',tag:'satellite',sector:'テクノロジー'},
-  {name:'CraneShares AI テクノロジーETF',category:'us',ticker:'AGIX',shares:25,avgCost:42.09,currentPrice:47.42,cost:Math.round(25*42.09*FX),value:Math.round(25*47.42*FX),note:'moomoo',fxRate:FX,earnings:'',tag:'satellite',sector:'ETF・インデックス'},
-  {name:'クオンタム・コンピューティング',category:'us',ticker:'QUBT',shares:100,avgCost:9.67,currentPrice:11.13,cost:Math.round(100*9.67*FX),value:Math.round(100*11.13*FX),note:'moomoo',fxRate:FX,earnings:'',tag:'satellite',sector:'テクノロジー'},
-  {name:'ラウンドヒル メモリーETF',category:'us',ticker:'DRAM',shares:15,avgCost:66.03,currentPrice:70.9,cost:Math.round(15*66.03*FX),value:Math.round(15*70.9*FX),note:'moomoo',fxRate:FX,earnings:'',tag:'satellite',sector:'ETF・インデックス'},
-  {name:'ポニーAI',category:'us',ticker:'PONY',shares:100,avgCost:9.48,currentPrice:8.361,cost:Math.round(100*9.48*FX),value:Math.round(100*8.361*FX),note:'moomoo',fxRate:FX,earnings:'',tag:'satellite',sector:'テクノロジー'},
-  {name:'Quantum eMotion(QNC)',category:'us',ticker:'QNC',shares:200,avgCost:2.9,currentPrice:3.373,cost:Math.round(200*2.9*FX),value:Math.round(200*3.373*FX),note:'moomoo',fxRate:FX,earnings:'',tag:'satellite',sector:'テクノロジー'},
-  {name:'ロケット・ラボ',category:'us',ticker:'RKLB',shares:5,avgCost:97.03,currentPrice:108.84,cost:Math.round(5*97.03*FX),value:Math.round(5*108.84*FX),note:'moomoo',fxRate:FX,earnings:'',tag:'satellite',sector:'テクノロジー'},
-  {name:'シンボティック',category:'us',ticker:'SYM',shares:10,avgCost:44.47,currentPrice:41.8,cost:Math.round(10*44.47*FX),value:Math.round(10*41.8*FX),note:'moomoo',fxRate:FX,earnings:'',tag:'satellite',sector:'テクノロジー'},
-  {name:'マイクロソフト',category:'us',ticker:'MSFT',shares:1,avgCost:395.46,currentPrice:399.65,cost:Math.round(395.46*FX),value:Math.round(399.65*FX),note:'moomoo',fxRate:FX,earnings:'',tag:'core',sector:'テクノロジー'},
-  {name:'テスラ',category:'us',ticker:'TSLA',shares:0.1167,avgCost:438.82,currentPrice:409.98,cost:Math.round(0.1167*438.82*FX),value:Math.round(0.1167*409.98*FX),note:'moomoo',fxRate:FX,earnings:'',tag:'growth',sector:'一般消費財'},
-  {name:'メタ・プラットフォームズ',category:'us',ticker:'META',shares:0.0164,avgCost:601.83,currentPrice:593.05,cost:Math.round(0.0164*601.83*FX),value:Math.round(0.0164*593.05*FX),note:'moomoo',fxRate:FX,earnings:'',tag:'growth',sector:'通信'},
+  {name:'オーロラ・イノベーション',category:'us',ticker:'AUR',shares:250,avgCost:6.75,currentPrice:6.4,cost:Math.round(250*6.75*FX),value:Math.round(250*6.4*FX),note:'moomoo',fxRate:FX,earnings:'',tag:'satellite',sector:'自動運転'},
+  {name:'CraneShares AI テクノロジーETF',category:'us',ticker:'AGIX',shares:25,avgCost:42.09,currentPrice:47.42,cost:Math.round(25*42.09*FX),value:Math.round(25*47.42*FX),note:'moomoo',fxRate:FX,earnings:'',tag:'satellite',sector:'AI'},
+  {name:'クオンタム・コンピューティング',category:'us',ticker:'QUBT',shares:100,avgCost:9.67,currentPrice:11.13,cost:Math.round(100*9.67*FX),value:Math.round(100*11.13*FX),note:'moomoo',fxRate:FX,earnings:'',tag:'satellite',sector:'AI'},
+  {name:'ラウンドヒル メモリーETF',category:'us',ticker:'DRAM',shares:15,avgCost:66.03,currentPrice:70.9,cost:Math.round(15*66.03*FX),value:Math.round(15*70.9*FX),note:'moomoo',fxRate:FX,earnings:'',tag:'satellite',sector:'コモディティ'},
+  {name:'ポニーAI',category:'us',ticker:'PONY',shares:100,avgCost:9.48,currentPrice:8.361,cost:Math.round(100*9.48*FX),value:Math.round(100*8.361*FX),note:'moomoo',fxRate:FX,earnings:'',tag:'satellite',sector:'自動運転'},
+  {name:'Quantum eMotion(QNC)',category:'us',ticker:'QNC',shares:200,avgCost:2.9,currentPrice:3.373,cost:Math.round(200*2.9*FX),value:Math.round(200*3.373*FX),note:'moomoo',fxRate:FX,earnings:'',tag:'satellite',sector:'AI'},
+  {name:'ロケット・ラボ',category:'us',ticker:'RKLB',shares:5,avgCost:97.03,currentPrice:108.84,cost:Math.round(5*97.03*FX),value:Math.round(5*108.84*FX),note:'moomoo',fxRate:FX,earnings:'',tag:'satellite',sector:'宇宙・防衛'},
+  {name:'シンボティック',category:'us',ticker:'SYM',shares:10,avgCost:44.47,currentPrice:41.8,cost:Math.round(10*44.47*FX),value:Math.round(10*41.8*FX),note:'moomoo',fxRate:FX,earnings:'',tag:'satellite',sector:'自動運転'},
+  {name:'マイクロソフト',category:'us',ticker:'MSFT',shares:1,avgCost:395.46,currentPrice:399.65,cost:Math.round(395.46*FX),value:Math.round(399.65*FX),note:'moomoo',fxRate:FX,earnings:'',tag:'core',sector:'AI'},
+  {name:'テスラ',category:'us',ticker:'TSLA',shares:0.1167,avgCost:438.82,currentPrice:409.98,cost:Math.round(0.1167*438.82*FX),value:Math.round(0.1167*409.98*FX),note:'moomoo',fxRate:FX,earnings:'',tag:'growth',sector:'AI'},
+  {name:'メタ・プラットフォームズ',category:'us',ticker:'META',shares:0.0164,avgCost:601.83,currentPrice:593.05,cost:Math.round(0.0164*601.83*FX),value:Math.round(0.0164*593.05*FX),note:'moomoo',fxRate:FX,earnings:'',tag:'growth',sector:'AI'},
   {name:'PayPay',category:'us',ticker:'PAYP',shares:0.5099,avgCost:19.71,currentPrice:14.2,cost:Math.round(0.5099*19.71*FX),value:Math.round(0.5099*14.2*FX),note:'moomoo',fxRate:FX,earnings:'',tag:'satellite',sector:'金融'},
-  {name:'アップル',category:'us',ticker:'AAPL',shares:0.017,avgCost:295.3,currentPrice:295.998,cost:Math.round(0.017*295.3*FX),value:Math.round(0.017*295.998*FX),note:'moomoo',fxRate:FX,earnings:'',tag:'core',sector:'テクノロジー'},
-  {name:'アルファベット',category:'us',ticker:'GOOG',shares:0.0125,avgCost:384.8,currentPrice:367.34,cost:Math.round(0.0125*384.8*FX),value:Math.round(0.0125*367.34*FX),note:'moomoo',fxRate:FX,earnings:'',tag:'core',sector:'通信'},
-  {name:'アマゾン',category:'us',ticker:'AMZN',shares:0.0183,avgCost:265.58,currentPrice:246.319,cost:Math.round(0.0183*265.58*FX),value:Math.round(0.0183*246.319*FX),note:'moomoo',fxRate:FX,earnings:'',tag:'core',sector:'一般消費財'},
-  {name:'オラクル',category:'us',ticker:'ORCL',shares:20,avgCost:143.8,currentPrice:184.13,cost:Math.round(20*143.8*160.06),value:Math.round(20*184.13*160.16),note:'野村 NISA',fxRate:160.16,earnings:'',tag:'growth',sector:'テクノロジー'},
-  {name:'パランティア',category:'us',ticker:'PLTR',shares:20,avgCost:152.99,currentPrice:127.99,cost:Math.round(20*152.99*160.06),value:Math.round(20*127.99*160.16),note:'野村 NISA',fxRate:160.16,earnings:'',tag:'growth',sector:'テクノロジー'},
+  {name:'アップル',category:'us',ticker:'AAPL',shares:0.017,avgCost:295.3,currentPrice:295.998,cost:Math.round(0.017*295.3*FX),value:Math.round(0.017*295.998*FX),note:'moomoo',fxRate:FX,earnings:'',tag:'core',sector:'AI'},
+  {name:'アルファベット',category:'us',ticker:'GOOG',shares:0.0125,avgCost:384.8,currentPrice:367.34,cost:Math.round(0.0125*384.8*FX),value:Math.round(0.0125*367.34*FX),note:'moomoo',fxRate:FX,earnings:'',tag:'core',sector:'AI'},
+  {name:'アマゾン',category:'us',ticker:'AMZN',shares:0.0183,avgCost:265.58,currentPrice:246.319,cost:Math.round(0.0183*265.58*FX),value:Math.round(0.0183*246.319*FX),note:'moomoo',fxRate:FX,earnings:'',tag:'core',sector:'AI'},
+  {name:'オラクル',category:'us',ticker:'ORCL',shares:20,avgCost:143.8,currentPrice:184.13,cost:Math.round(20*143.8*160.06),value:Math.round(20*184.13*160.16),note:'野村 NISA',fxRate:160.16,earnings:'',tag:'growth',sector:'AI'},
+  {name:'パランティア',category:'us',ticker:'PLTR',shares:20,avgCost:152.99,currentPrice:127.99,cost:Math.round(20*152.99*160.06),value:Math.round(20*127.99*160.16),note:'野村 NISA',fxRate:160.16,earnings:'',tag:'growth',sector:'AI'},
 ];
+
+// ===== 投資テーマ管理 =====
+const DEFAULT_THEMES=['AI','自動運転','FA','エレクトロニクス','工業','金融','宇宙・防衛','エネルギー','コモディティ','インデックス','現金'];
+const TH_KEY='investment_themes';
+let themes=JSON.parse(localStorage.getItem(TH_KEY)||'null')||[...DEFAULT_THEMES];
+let pendingThemes=[...themes]; // 編集中の一時データ
+
+function saveThemesToStorage(){localStorage.setItem(TH_KEY,JSON.stringify(themes));}
+
+function openThemeSettings(){
+  pendingThemes=[...themes];
+  renderThemeEditList();
+  document.getElementById('themeModal').classList.add('open');
+}
+function closeThemeModal(){document.getElementById('themeModal').classList.remove('open');}
+
+function renderThemeEditList(){
+  const el=document.getElementById('themeEditList');
+  el.innerHTML=pendingThemes.map((t,i)=>`
+    <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">
+      <input type="text" value="${t}" onchange="pendingThemes[${i}]=this.value" style="flex:1;background:var(--bg);border:1px solid var(--bd);color:var(--tx);font-size:13px;padding:6px 9px;border-radius:6px;outline:none;font-family:inherit;">
+      <button onclick="removeTheme(${i})" style="background:none;border:1px solid var(--bd);color:var(--tx2);font-size:12px;padding:4px 9px;border-radius:5px;cursor:pointer;">削除</button>
+    </div>`).join('');
+  // update sector dropdown
+  updateSectorDropdown();
+}
+
+function addTheme(){
+  const input=document.getElementById('newThemeName');
+  const val=input.value.trim();
+  if(!val){alert('テーマ名を入力してください');return;}
+  if(pendingThemes.includes(val)){alert('すでに存在するテーマ名です');return;}
+  pendingThemes.push(val);input.value='';renderThemeEditList();
+}
+
+function removeTheme(i){
+  if(!confirm(`「${pendingThemes[i]}」を削除しますか？\n※このテーマが設定された銘柄は「未分類」になります。`))return;
+  pendingThemes.splice(i,1);renderThemeEditList();
+}
+
+function saveThemes(){
+  // 旧テーマ名→新テーマ名のマッピングを作成
+  const oldThemes=[...themes];
+  themes=[...pendingThemes];
+  saveThemesToStorage();
+  // 銘柄のテーマも更新（削除されたテーマは空に）
+  assets.forEach(a=>{
+    if(a.sector&&!themes.includes(a.sector))a.sector='';
+  });
+  save();updateSectorDropdown();closeThemeModal();
+  renderAnalysis();alert('テーマ設定を保存しました！');
+}
+
+function updateSectorDropdown(){
+  const sel=document.getElementById('fSector');
+  if(!sel)return;
+  const cur=sel.value;
+  sel.innerHTML='<option value="">未分類</option>'+themes.map(t=>`<option value="${t}">${t}</option>`).join('');
+  sel.value=themes.includes(cur)?cur:'';
+}
 
 const SK='myassets_final',GK='mygoal_final',TK='trend_data',PK='policy_text';
 let assets=(()=>{try{const d=JSON.parse(localStorage.getItem(SK)||'null');if(d&&d.length>0&&d[0].name)return d;}catch{}return JSON.parse(JSON.stringify(INIT));})();
@@ -1008,6 +1086,7 @@ document.getElementById('goalModal').addEventListener('click',e=>{if(e.target===
 document.getElementById('policyModal').addEventListener('click',e=>{if(e.target===e.currentTarget)closePolicyModal();});
 
 renderPolicy();
+updateSectorDropdown();
 recordWeeklyTrend();
 save();render();
 </script>
