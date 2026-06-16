@@ -719,20 +719,23 @@ function render(){
   const pieLabelPlugin={
     id:'pieLabels',
     afterDatasetsDraw(chart){
-      const {ctx,data}=chart;
-      chart.data.datasets.forEach((dataset,di)=>{
+      const {ctx}=chart;
+      chart.data.datasets.forEach((ds,di)=>{
         chart.getDatasetMeta(di).data.forEach((arc,i)=>{
-          const v=dataset.data[i];
+          const v=ds.data[i];
           if(!v||v===0)return;
           const pct=pieTotal>0?(v/pieTotal*100).toFixed(1):0;
-          if(parseFloat(pct)<3)return; // 小さすぎるセグメントは省略
-          const {x,y}=arc.tooltipPosition();
+          if(parseFloat(pct)<4)return;
+          const angle=(arc.startAngle+arc.endAngle)/2;
+          const r=(arc.outerRadius+arc.innerRadius)/2;
+          const x=arc.x+Math.cos(angle)*r;
+          const y=arc.y+Math.sin(angle)*r;
           ctx.save();
           ctx.fillStyle='#fff';
-          ctx.font='bold 11px Inter, sans-serif';
+          ctx.font='bold 11px Inter,sans-serif';
           ctx.textAlign='center';
           ctx.textBaseline='middle';
-          ctx.fillText(pct+'%', x, y);
+          ctx.fillText(pct+'%',x,y);
           ctx.restore();
         });
       });
@@ -895,7 +898,7 @@ function renderAnalysis(){
 
   if(cgsChart)cgsChart.destroy();
   const cgsTotal2=Object.values(cgs).reduce((s,v)=>s+v,0);
-  const cgsLabelPlugin={id:'cgsLabels',afterDatasetsDraw(chart){const {ctx,data}=chart;chart.data.datasets.forEach((ds,di)=>{chart.getDatasetMeta(di).data.forEach((arc,i)=>{const v=ds.data[i];if(!v||v===0)return;const pct=cgsTotal2>0?(v/cgsTotal2*100).toFixed(1):0;if(parseFloat(pct)<4)return;const {x,y}=arc.tooltipPosition();ctx.save();ctx.fillStyle='#fff';ctx.font='bold 11px Inter,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(pct+'%',x,y);ctx.restore();});});}}; 
+  const cgsLabelPlugin={id:'cgsLabels',afterDatasetsDraw(chart){const {ctx}=chart;chart.data.datasets.forEach((ds,di)=>{chart.getDatasetMeta(di).data.forEach((arc,i)=>{const v=ds.data[i];if(!v||v===0)return;const pct=cgsTotal2>0?(v/cgsTotal2*100).toFixed(1):0;if(parseFloat(pct)<4)return;const angle=(arc.startAngle+arc.endAngle)/2;const r=(arc.outerRadius+arc.innerRadius)/2;const x=arc.x+Math.cos(angle)*r;const y=arc.y+Math.sin(angle)*r;ctx.save();ctx.fillStyle='#fff';ctx.font='bold 11px Inter,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(pct+'%',x,y);ctx.restore();});});}};
   cgsChart=new Chart(document.getElementById('cgsChart'),{
     type:'doughnut',
     data:{labels:['コア','グロース','サテライト','未分類'],datasets:[{data:[cgs.core||0,cgs.growth||0,cgs.satellite||0,cgs['']||0],backgroundColor:['#58a6ff','#3fb950','#a371f7','#484f58'],borderColor:'#161b22',borderWidth:3}]},
@@ -928,7 +931,7 @@ function renderAnalysis(){
 
   if(currencyChart)currencyChart.destroy();
   const currTotal=jpy+usd;
-  const currLabelPlugin={id:'currLabels',afterDatasetsDraw(chart){const {ctx}=chart;chart.data.datasets.forEach((ds,di)=>{chart.getDatasetMeta(di).data.forEach((arc,i)=>{const v=ds.data[i];if(!v||v===0)return;const pct=currTotal>0?(v/currTotal*100).toFixed(1):0;if(parseFloat(pct)<4)return;const {x,y}=arc.tooltipPosition();ctx.save();ctx.fillStyle='#fff';ctx.font='bold 11px Inter,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(pct+'%',x,y);ctx.restore();});});}}; 
+  const currLabelPlugin={id:'currLabels',afterDatasetsDraw(chart){const {ctx}=chart;chart.data.datasets.forEach((ds,di)=>{chart.getDatasetMeta(di).data.forEach((arc,i)=>{const v=ds.data[i];if(!v||v===0)return;const pct=currTotal>0?(v/currTotal*100).toFixed(1):0;if(parseFloat(pct)<4)return;const angle=(arc.startAngle+arc.endAngle)/2;const r=(arc.outerRadius+arc.innerRadius)/2;const x=arc.x+Math.cos(angle)*r;const y=arc.y+Math.sin(angle)*r;ctx.save();ctx.fillStyle='#fff';ctx.font='bold 11px Inter,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(pct+'%',x,y);ctx.restore();});});}};
   currencyChart=new Chart(document.getElementById('currencyChart'),{
     type:'doughnut',
     data:{labels:['円 (JPY)','ドル換算 (USD)'],datasets:[{data:[jpy,usd],backgroundColor:['#e3b341','#58a6ff'],borderColor:'#161b22',borderWidth:3}]},
