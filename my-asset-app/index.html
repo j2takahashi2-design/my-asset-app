@@ -218,7 +218,7 @@ tr:hover td{background:var(--sf2);}
             <button class="tab" onclick="setF('jp',this)">日本株</button>
             <button class="tab" onclick="setF('us',this)">米国株</button>
             <button class="tab" onclick="setF('fund',this)">投信</button>
-            <button class="tab" onclick="setF('bank',this)">現金</button>
+
           </div>
         </div>
         <div class="tbl-actions">
@@ -246,7 +246,20 @@ tr:hover td{background:var(--sf2);}
         </table>
       </div>
     </div>
+  <div id="cashSection" class="table-sec" style="margin-bottom:18px;">
+    <div class="table-hdr">
+      <div class="table-title">🏦 現金・預金・MRF</div>
+      <button class="add-btn" onclick="openAddCash()">＋ 追加</button>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th style="width:40%">名称</th><th style="width:25%">口座</th><th style="width:25%">金額</th><th style="width:10%">操作</th></tr></thead>
+        <tbody id="cashTbody"></tbody>
+      </table>
+    </div>
   </div>
+
+  </div><!-- end page-portfolio -->
 
   <!-- ANALYSIS -->
   <div class="page" id="page-analysis">
@@ -414,7 +427,8 @@ tr:hover td{background:var(--sf2);}
     </div>
     <div id="basicSec" style="display:none;">
       <div class="field"><label>名前</label><input id="fNameB" type="text" placeholder="例: 楽天銀行"></div>
-      <div class="field"><label>金額 ¥</label><input id="fValB" type="number" placeholder="1000000"></div>
+      <div class="field" id="fundCostField" style="display:none;"><label>取得価額（購入金額） ¥</label><input id="fCostB" type="number" placeholder="900000"></div>
+      <div class="field"><label id="fValBLabel">金額 ¥</label><input id="fValB" type="number" placeholder="1000000"></div>
       <div id="fundTagSec" style="display:none;">
         <div class="field"><label>タグ（投資スタイル）</label>
           <select id="fTagB"><option value="">未分類</option><option value="core">コア</option><option value="growth">グロース</option><option value="satellite">サテライト</option></select>
@@ -427,6 +441,9 @@ tr:hover td{background:var(--sf2);}
       <div class="frow">
         <div class="field"><label>取得価額 ¥</label><input id="fCostC" type="number"></div>
         <div class="field"><label>現在価額 ¥</label><input id="fValC" type="number"></div>
+      </div>
+      <div class="field"><label>タグ（投資スタイル）</label>
+        <select id="fTagC"><option value="">未分類</option><option value="core">コア</option><option value="growth">グロース</option><option value="satellite">サテライト</option></select>
       </div>
     </div>
     <div class="macts">
@@ -702,6 +719,7 @@ function render(){
   const pd=[t.stock.v-t.stock.c,t.fund.v-t.fund.c,t.bank.v-t.bank.c,t.crypto.v-t.crypto.c];
   barChart=new Chart(document.getElementById('barChart'),{type:'bar',data:{labels:['株','投信','銀行','仮想通貨'],datasets:[{data:pd,backgroundColor:pd.map(v=>v>=0?'rgba(63,185,80,.75)':'rgba(247,129,102,.75)'),borderRadius:5,barPercentage:.6}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#8b949e',font:{size:11}},grid:{color:'#30363d'}},y:{ticks:{color:'#8b949e',font:{size:11},callback:v=>'¥'+Math.round(v/10000)+'万'},grid:{color:'#30363d'}}}}});
   renderTable();
+  renderCash();
 }
 
 // ソート
@@ -728,7 +746,8 @@ function getSortedAssets(){
 
 function renderTable(){
   const tbody=document.getElementById('tbody');
-  const shown=getSortedAssets();
+  // bankは別欄のため保有一覧から除外
+  const shown=getSortedAssets().filter(a=>a.category!=='bank');
   if(!shown.length){tbody.innerHTML='<tr class="empty-row"><td colspan="10">資産がありません。CSVを取込むか「＋追加」から登録してください。</td></tr>';return;}
   const catLabel={jp:'日本株',us:'米国株',fund:'投信',bank:'現金',crypto:'仮想通貨'};
   const bc={jp:'b-jp',us:'b-us',fund:'b-fund',bank:'b-bank',crypto:'b-crypto'};
@@ -736,8 +755,32 @@ function renderTable(){
     const ri=assets.indexOf(a),pnl=a.value-a.cost,pct=a.cost>0?((pnl/a.cost)*100).toFixed(1):0;
     const qty=a.shares&&a.shares>0?`${a.shares}${a.category==='fund'?'口':'株'}`:'—';
     const canRef=(a.category==='jp'||a.category==='us')&&a.ticker;
-    return`<tr><td><span class="an">${a.name}</span>${a.ticker?`<span class="tkr">${a.ticker}</span>`:''}</td><td><span class="badge ${bc[a.category]}">${catLabel[a.category]}</span></td><td style="font-size:11px;color:var(--tx2);">${a.note||'—'}</td><td>${tagBadge(a.tag||'')}</td><td>${qty}</td><td>${fmt(a.cost)}</td><td>${fmt(a.value)}</td><td class="${pcls(pnl)}">${sign(pnl)}${fmt(pnl)}<br><small>${sign(pnl)}${pct}%</small></td><td>${earningsLabel(a.earnings||'')}</td><td style="white-space:nowrap;">${canRef?`<button class="ib rf" onclick="refreshOne(${ri})">更新</button>`:''}<button class="ib ed" onclick="openEdit(${ri})">編集</button><button class="ib" onclick="delA(${ri})">削除</button></td></tr>`;
+    return`<tr><td><span class="an">${a.name}</span>${a.ticker?`<span class="tkr">${a.ticker}</span>`:''}</td><td><span class="badge ${bc[a.category]}">${catLabel[a.category]}</span></td><td style="font-size:11px;color:var(--tx2);">${a.note||'—'}</td><td>${tagBadge(a.tag||'')}${a.sector?`<span style="font-size:10px;color:var(--tx2);margin-left:3px;">${a.sector}</span>`:''}</td><td>${qty}</td><td>${fmt(a.cost)}</td><td>${fmt(a.value)}</td><td class="${pcls(pnl)}">${sign(pnl)}${fmt(pnl)}<br><small>${sign(pnl)}${pct}%</small></td><td>${earningsLabel(a.earnings||'')}</td><td style="white-space:nowrap;">${canRef?`<button class="ib rf" onclick="refreshOne(${ri})">更新</button>`:''}<button class="ib ed" onclick="openEdit(${ri})">編集</button><button class="ib" onclick="delA(${ri})">削除</button></td></tr>`;
   }).join('');
+}
+
+function renderCash(){
+  const tbody=document.getElementById('cashTbody');
+  const cashAssets=assets.filter(a=>a.category==='bank');
+  const total=cashAssets.reduce((s,a)=>s+a.value,0);
+  if(!cashAssets.length){
+    tbody.innerHTML='<tr><td colspan="3" style="text-align:center;color:var(--tx2);padding:16px;font-size:12px;">現金・預金がありません</td></tr>';
+  }else{
+    tbody.innerHTML=cashAssets.map(a=>{
+      const ri=assets.indexOf(a);
+      return`<tr><td><span class="an">${a.name}</span></td><td style="font-size:11px;color:var(--tx2);">${a.note||'—'}</td><td style="font-weight:500;">${fmt(a.value)}</td><td style="white-space:nowrap;"><button class="ib ed" onclick="openEdit(${ri})">編集</button><button class="ib" onclick="delA(${ri})">削除</button></td></tr>`;
+    }).join('')+'<tr style="background:var(--sf2);"><td colspan="2" style="font-size:12px;font-weight:600;padding:8px 12px;">合計</td><td style="font-weight:700;padding:8px 12px;">${fmt(total)}</td><td></td></tr>'.replace('${fmt(total)}',fmt(total));
+  }
+}
+
+function openAddCash(){
+  editIdx=null;
+  document.getElementById('modalTitle').textContent='現金・預金を追加';
+  ['fNameB','fValB','fCostB'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+  document.getElementById('fCat').value='bank';
+  document.getElementById('fNote').value='野村';
+  document.getElementById('mainModal').classList.add('open');
+  onCatChange();
 }
 
 function setF(f,btn){filter=f;document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));btn.classList.add('active');renderTable();}
@@ -1008,12 +1051,15 @@ function openEdit(i){
   }else if(a.category==='bank'){
     document.getElementById('fNameB').value=a.name;document.getElementById('fValB').value=a.value;
   }else if(a.category==='fund'){
-    document.getElementById('fNameB').value=a.name;document.getElementById('fValB').value=a.value;
+    document.getElementById('fNameB').value=a.name;
+    document.getElementById('fValB').value=a.value;
+    document.getElementById('fCostB').value=a.cost||'';
     document.getElementById('fTagB').value=a.tag||'';
     const sb=document.getElementById('fSectorB');
     if(sb){sb.innerHTML='<option value="">未分類</option>'+themes.map(t=>`<option value="${t}">${t}</option>`).join('');sb.value=a.sector||'';}
   }else if(a.category==='crypto'){
     document.getElementById('fNameC').value=a.name;document.getElementById('fCostC').value=a.cost;document.getElementById('fValC').value=a.value;
+    document.getElementById('fTagC').value=a.tag||'';
   }else{
     document.getElementById('fNameB').value=a.name;document.getElementById('fValB').value=a.value;
   }
@@ -1025,6 +1071,10 @@ function onCatChange(){
   document.getElementById('basicSec').style.display=(cat==='bank'||cat==='fund')?'block':'none';
   document.getElementById('cryptoSec2').style.display=cat==='crypto'?'block':'none';
   document.getElementById('fundTagSec').style.display=cat==='fund'?'block':'none';
+  const fundCostField=document.getElementById('fundCostField');
+  if(fundCostField)fundCostField.style.display=cat==='fund'?'block':'none';
+  const fValBLabel=document.getElementById('fValBLabel');
+  if(fValBLabel)fValBLabel.textContent=cat==='fund'?'現在価額 ¥':'金額 ¥';
   if(cat==='jp'||cat==='us')setMkt(cat);
   // テーマドロップダウンを同期
   const sb=document.getElementById('fSectorB');
@@ -1057,12 +1107,14 @@ function doSave(){
   }else if(cat==='bank'||cat==='fund'){
     const name=document.getElementById('fNameB').value.trim();if(!name){alert('名前を入力してください');return;}
     const val=parseFloat(document.getElementById('fValB').value)||0;
+    const costB=cat==='fund'?(parseFloat(document.getElementById('fCostB').value)||val):val;
     const tagB=cat==='fund'?(document.getElementById('fTagB').value||''):'';
     const sectorB=cat==='fund'?(document.getElementById('fSectorB').value||''):'';
-    entry={name,category:cat,cost:val,value:val,note,earnings:'',tag:tagB,sector:sectorB};
+    entry={name,category:cat,cost:costB,value:val,note,earnings:'',tag:tagB,sector:sectorB};
   }else{
     const name=document.getElementById('fNameC').value.trim();if(!name){alert('名前を入力してください');return;}
-    entry={name,category:'crypto',cost:parseFloat(document.getElementById('fCostC').value)||0,value:parseFloat(document.getElementById('fValC').value)||0,note,earnings:'',tag:'',sector:''};
+    const tagC=document.getElementById('fTagC').value||'';
+    entry={name,category:'crypto',cost:parseFloat(document.getElementById('fCostC').value)||0,value:parseFloat(document.getElementById('fValC').value)||0,note,earnings:'',tag:tagC,sector:''};
   }
   if(editIdx!==null){assets[editIdx]=entry;}else{assets.push(entry);}
   save();closeModal();render();
