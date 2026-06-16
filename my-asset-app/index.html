@@ -714,10 +714,58 @@ function render(){
   upd('mBank',fmt(t.bank.v));
   const cp=t.crypto.v-t.crypto.c;upd('mCrypto',fmt(t.crypto.v));upd('mCryptoP',cp===0?'—':sign(cp)+fmt(cp),pcls(cp));
   if(pieChart)pieChart.destroy();
-  pieChart=new Chart(document.getElementById('pieChart'),{type:'doughnut',data:{labels:['株','投信','銀行','仮想通貨'],datasets:[{data:[t.stock.v,t.fund.v,t.bank.v,t.crypto.v],backgroundColor:['#58a6ff','#3fb950','#e3b341','#a371f7'],borderColor:'#161b22',borderWidth:3,hoverOffset:5}]},options:{responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{legend:{position:'bottom',labels:{color:'#8b949e',font:{size:11},padding:10,boxWidth:10}}}}});
+  const pieTotal=t.stock.v+t.fund.v+t.bank.v+t.crypto.v;
+  pieChart=new Chart(document.getElementById('pieChart'),{
+    type:'doughnut',
+    data:{
+      labels:['株','投信','銀行','仮想通貨'],
+      datasets:[{
+        data:[t.stock.v,t.fund.v,t.bank.v,t.crypto.v],
+        backgroundColor:['#58a6ff','#3fb950','#e3b341','#a371f7'],
+        borderColor:'#161b22',borderWidth:3,hoverOffset:5
+      }]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,cutout:'62%',
+      plugins:{
+        legend:{position:'bottom',labels:{color:'#8b949e',font:{size:11},padding:10,boxWidth:10}},
+        tooltip:{
+          callbacks:{
+            label:ctx=>{
+              const v=ctx.parsed;
+              const pct=pieTotal>0?(v/pieTotal*100).toFixed(1):0;
+              return ` ${ctx.label}: ¥${Math.round(v).toLocaleString('ja-JP')} (${pct}%)`;
+            }
+          }
+        }
+      }
+    }
+  });
   if(barChart)barChart.destroy();
-  const pd=[t.stock.v-t.stock.c,t.fund.v-t.fund.c,t.bank.v-t.bank.c,t.crypto.v-t.crypto.c];
-  barChart=new Chart(document.getElementById('barChart'),{type:'bar',data:{labels:['株','投信','銀行','仮想通貨'],datasets:[{data:pd,backgroundColor:pd.map(v=>v>=0?'rgba(63,185,80,.75)':'rgba(247,129,102,.75)'),borderRadius:5,barPercentage:.6}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#8b949e',font:{size:11}},grid:{color:'#30363d'}},y:{ticks:{color:'#8b949e',font:{size:11},callback:v=>'¥'+Math.round(v/10000)+'万'},grid:{color:'#30363d'}}}}});
+  const pd=[t.stock.v-t.stock.c,t.fund.v-t.fund.c,t.crypto.v-t.crypto.c];
+  const pdLabels=['株','投信','仮想通貨'];
+  barChart=new Chart(document.getElementById('barChart'),{
+    type:'bar',
+    data:{
+      labels:pdLabels,
+      datasets:[{
+        data:pd,
+        backgroundColor:pd.map(v=>v>=0?'rgba(63,185,80,.75)':'rgba(247,129,102,.75)'),
+        borderRadius:5,barPercentage:.6
+      }]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        datalabels:{display:false}
+      },
+      scales:{
+        x:{ticks:{color:'#8b949e',font:{size:11}},grid:{color:'#30363d'}},
+        y:{ticks:{color:'#8b949e',font:{size:11},callback:v=>'¥'+Math.round(v/10000)+'万'},grid:{color:'#30363d'}}
+      }
+    }
+  });
   renderTable();
   renderCash();
 }
@@ -809,10 +857,15 @@ function renderAnalysis(){
   cgsEl.innerHTML=cgsItems.map(([label,key,color])=>`<div class="seg-row"><span class="seg-label" style="color:${color}">${label}</span><span class="seg-val">${fmt(cgs[key]||0)} <small style="color:var(--tx2)">${total>0?((cgs[key]||0)/total*100).toFixed(1):0}%</small></span></div>`).join('');
 
   if(cgsChart)cgsChart.destroy();
+  const cgsTotal2=Object.values(cgs).reduce((s,v)=>s+v,0);
   cgsChart=new Chart(document.getElementById('cgsChart'),{
     type:'doughnut',
     data:{labels:['コア','グロース','サテライト','未分類'],datasets:[{data:[cgs.core||0,cgs.growth||0,cgs.satellite||0,cgs['']||0],backgroundColor:['#58a6ff','#3fb950','#a371f7','#484f58'],borderColor:'#161b22',borderWidth:3}]},
-    options:{responsive:true,maintainAspectRatio:false,cutout:'60%',plugins:{legend:{position:'bottom',labels:{color:'#8b949e',font:{size:11},padding:8,boxWidth:9}}}}
+    options:{responsive:true,maintainAspectRatio:false,cutout:'60%',
+      plugins:{
+        legend:{position:'bottom',labels:{color:'#8b949e',font:{size:11},padding:8,boxWidth:9}},
+        tooltip:{callbacks:{label:ctx=>{const v=ctx.parsed;const pct=cgsTotal2>0?(v/cgsTotal2*100).toFixed(1):0;return ` ${ctx.label}: ¥${Math.round(v).toLocaleString('ja-JP')} (${pct}%)`;}}}}
+    }
   });
 
   // セクター集計（現金除外）
@@ -834,10 +887,15 @@ function renderAnalysis(){
   currencyEl.innerHTML=[['円 (JPY)',jpy,'#e3b341'],['ドル換算 (USD)',usd,'#58a6ff']].map(([l,v,c])=>`<div class="seg-row"><span class="seg-label" style="color:${c}">${l}</span><span class="seg-val">${fmt(v)} <small style="color:var(--tx2)">${total>0?(v/total*100).toFixed(1):0}%</small></span></div>`).join('');
 
   if(currencyChart)currencyChart.destroy();
+  const currTotal=jpy+usd;
   currencyChart=new Chart(document.getElementById('currencyChart'),{
     type:'doughnut',
     data:{labels:['円 (JPY)','ドル換算 (USD)'],datasets:[{data:[jpy,usd],backgroundColor:['#e3b341','#58a6ff'],borderColor:'#161b22',borderWidth:3}]},
-    options:{responsive:true,maintainAspectRatio:false,cutout:'60%',plugins:{legend:{position:'bottom',labels:{color:'#8b949e',font:{size:11},padding:8,boxWidth:9}}}}
+    options:{responsive:true,maintainAspectRatio:false,cutout:'60%',
+      plugins:{
+        legend:{position:'bottom',labels:{color:'#8b949e',font:{size:11},padding:8,boxWidth:9}},
+        tooltip:{callbacks:{label:ctx=>{const v=ctx.parsed;const pct=currTotal>0?(v/currTotal*100).toFixed(1):0;return ` ${ctx.label}: ¥${Math.round(v).toLocaleString('ja-JP')} (${pct}%)`;}}}}
+    }
   });
 }
 
@@ -859,7 +917,35 @@ function parseCSV(text){
   return lines.map(l=>{const cols=[];let cur='',inQ=false;for(let i=0;i<l.length;i++){if(l[i]==='"'){inQ=!inQ;}else if(l[i]===','&&!inQ){cols.push(cur.trim());cur='';}else cur+=l[i];}cols.push(cur.trim());return cols;});
 }
 function cleanNum(s){if(!s)return 0;return parseFloat(String(s).replace(/[,\s+¥$\+]/g,''))||0;}
-function upsertAsset(entry){const idx=assets.findIndex(a=>a.name===entry.name&&a.category===entry.category);if(idx>=0){assets[idx]={...assets[idx],...entry};}else{assets.push(entry);}}
+function upsertAsset(entry){
+  // ティッカーがあればティッカー優先照合、なければ名前で照合
+  let idx=-1;
+  if(entry.ticker){
+    idx=assets.findIndex(a=>a.ticker&&a.ticker===entry.ticker&&a.category===entry.category);
+  }
+  if(idx<0){
+    // 名前の前方一致で照合（moomooと野村で名前が微妙に違う場合に対応）
+    idx=assets.findIndex(a=>a.category===entry.category&&(
+      a.name===entry.name ||
+      a.name.startsWith(entry.name.slice(0,8)) ||
+      entry.name.startsWith(a.name.slice(0,8))
+    ));
+  }
+  if(idx>=0){
+    // 既存のタグ・テーマ・口座メモは上書きしない（CSV側が空の場合）
+    const existing=assets[idx];
+    assets[idx]={
+      ...existing,
+      ...entry,
+      tag: entry.tag||existing.tag||'',
+      sector: entry.sector||existing.sector||'',
+      earnings: entry.earnings||existing.earnings||'',
+      note: entry.note||existing.note||'',
+    };
+  }else{
+    assets.push(entry);
+  }
+}
 function handleDrop(e,type){e.preventDefault();e.currentTarget.classList.remove('drag');const file=e.dataTransfer.files[0];if(file)processCSVFile(file,type);}
 function handleFile(e,type){const file=e.target.files[0];if(file)processCSVFile(file,type);}
 function processCSVFile(file,type){
