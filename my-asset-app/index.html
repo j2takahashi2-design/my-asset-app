@@ -415,6 +415,12 @@ tr:hover td{background:var(--sf2);}
     <div id="basicSec" style="display:none;">
       <div class="field"><label>名前</label><input id="fNameB" type="text" placeholder="例: 楽天銀行"></div>
       <div class="field"><label>金額 ¥</label><input id="fValB" type="number" placeholder="1000000"></div>
+      <div id="fundTagSec" style="display:none;">
+        <div class="field"><label>タグ（投資スタイル）</label>
+          <select id="fTagB"><option value="">未分類</option><option value="core">コア</option><option value="growth">グロース</option><option value="satellite">サテライト</option></select>
+        </div>
+        <div class="field"><label>投資テーマ</label><select id="fSectorB"><option value="">未分類</option></select></div>
+      </div>
     </div>
     <div id="cryptoSec2" style="display:none;">
       <div class="field"><label>銘柄名</label><input id="fNameC" type="text" placeholder="例: ビットコイン"></div>
@@ -992,6 +998,11 @@ function openEdit(i){
     if(a.category==='us')document.getElementById('fFx').value=a.fxRate||FX;calcP();
   }else if(a.category==='bank'){
     document.getElementById('fNameB').value=a.name;document.getElementById('fValB').value=a.value;
+  }else if(a.category==='fund'){
+    document.getElementById('fNameB').value=a.name;document.getElementById('fValB').value=a.value;
+    document.getElementById('fTagB').value=a.tag||'';
+    const sb=document.getElementById('fSectorB');
+    if(sb){sb.innerHTML='<option value="">未分類</option>'+themes.map(t=>`<option value="${t}">${t}</option>`).join('');sb.value=a.sector||'';}
   }else if(a.category==='crypto'){
     document.getElementById('fNameC').value=a.name;document.getElementById('fCostC').value=a.cost;document.getElementById('fValC').value=a.value;
   }else{
@@ -1004,7 +1015,11 @@ function onCatChange(){
   document.getElementById('stockSec').style.display=(cat==='jp'||cat==='us')?'block':'none';
   document.getElementById('basicSec').style.display=(cat==='bank'||cat==='fund')?'block':'none';
   document.getElementById('cryptoSec2').style.display=cat==='crypto'?'block':'none';
+  document.getElementById('fundTagSec').style.display=cat==='fund'?'block':'none';
   if(cat==='jp'||cat==='us')setMkt(cat);
+  // テーマドロップダウンを同期
+  const sb=document.getElementById('fSectorB');
+  if(sb){sb.innerHTML='<option value="">未分類</option>'+themes.map(t=>`<option value="${t}">${t}</option>`).join('');}
 }
 function setMkt(m){
   mkt=m;['jp','us'].forEach(k=>{const e=document.getElementById('btn'+k.toUpperCase());if(e)e.classList.toggle('active',k===m);});
@@ -1033,7 +1048,9 @@ function doSave(){
   }else if(cat==='bank'||cat==='fund'){
     const name=document.getElementById('fNameB').value.trim();if(!name){alert('名前を入力してください');return;}
     const val=parseFloat(document.getElementById('fValB').value)||0;
-    entry={name,category:cat,cost:val,value:val,note,earnings:'',tag:'',sector:cat==='fund'?'投資信託':''};
+    const tagB=cat==='fund'?(document.getElementById('fTagB').value||''):'';
+    const sectorB=cat==='fund'?(document.getElementById('fSectorB').value||''):'';
+    entry={name,category:cat,cost:val,value:val,note,earnings:'',tag:tagB,sector:sectorB};
   }else{
     const name=document.getElementById('fNameC').value.trim();if(!name){alert('名前を入力してください');return;}
     entry={name,category:'crypto',cost:parseFloat(document.getElementById('fCostC').value)||0,value:parseFloat(document.getElementById('fValC').value)||0,note,earnings:'',tag:'',sector:''};
