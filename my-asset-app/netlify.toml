@@ -1,5 +1,7 @@
 [build]
+  base = "my-asset-app"
   functions = "netlify/functions"
+  publish = "."
 
 [[redirects]]
   from = "/api/*"
