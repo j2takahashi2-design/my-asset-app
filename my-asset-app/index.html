@@ -374,6 +374,10 @@ tr:hover td{background:var(--sf2);}
         <option value="野村 つみたて">野村 つみたて</option>
         <option value="野村 NISA成長">野村 NISA成長</option>
         <option value="moomoo">moomoo</option>
+        <option value="楽天証券">楽天証券</option>
+        <option value="楽天証券 NISA">楽天証券 NISA</option>
+        <option value="マネックス証券">マネックス証券</option>
+        <option value="マネックス証券 NISA">マネックス証券 NISA</option>
         <option value="その他">その他</option>
       </select>
     </div>
@@ -426,7 +430,13 @@ tr:hover td{background:var(--sf2);}
       <div class="field"><label>次回決算日（任意）</label><input id="fEarnings" type="text" placeholder="2025-08-01"></div>
     </div>
     <div id="basicSec" style="display:none;">
-      <div class="field"><label>名前</label><input id="fNameB" type="text" placeholder="例: 楽天銀行"></div>
+      <div class="field"><label>名前</label><input id="fNameB" type="text" placeholder="例: 楽天銀行 / eMAXIS Slim"></div>
+      <div class="field" id="fundLookupField" style="display:none;">
+        <label>投信コード（任意・自動取得用）</label>
+        <input id="fFundCode" type="text" placeholder="例: 03311187（Yahoo Financeのコード）">
+        <button class="lbtn" onclick="doFundLookup()">🔍 基準価額を自動取得</button>
+        <div class="lres" id="fundLookupRes"></div>
+      </div>
       <div class="field" id="fundCostField" style="display:none;"><label>取得価額（購入金額） ¥</label><input id="fCostB" type="number" placeholder="900000"></div>
       <div class="field"><label id="fValBLabel">金額 ¥</label><input id="fValB" type="number" placeholder="1000000"></div>
       <div id="fundTagSec" style="display:none;">
@@ -665,12 +675,17 @@ function closePolicyModal(){document.getElementById('policyModal').classList.rem
 function savePolicy(){policyText=document.getElementById('policyInput').value.trim();localStorage.setItem(PK,policyText);closePolicyModal();renderPolicy();}
 
 // 週次記録（同じ週は1回だけ）
-function recordWeeklyTrend(){
+function recordTrend(){
   const total=assets.reduce((s,a)=>s+a.value,0);
+  if(total===0)return;
   const now=new Date();
-  const weekKey=`${now.getFullYear()}-W${String(Math.ceil((now.getDate()+new Date(now.getFullYear(),now.getMonth(),1).getDay())/7)).padStart(2,'0')}`;
-  const exists=trendData.find(d=>d.week===weekKey);
-  if(!exists){trendData.push({week:weekKey,total,date:now.toISOString().slice(0,10)});if(trendData.length>52)trendData=trendData.slice(-52);save();}
+  const dateKey=now.toISOString().slice(0,10); // YYYY-MM-DD
+  const last=trendData[trendData.length-1];
+  // 同じ日はスキップ（1日1回まで）
+  if(last&&last.date===dateKey)return;
+  trendData.push({date:dateKey,total});
+  if(trendData.length>365)trendData=trendData.slice(-365);
+  save();
 }
 
 function showPage(id,btn){
@@ -877,12 +892,33 @@ function setF(f,btn){filter=f;document.querySelectorAll('.tab').forEach(t=>t.cla
 function renderAnalysis(){
   // 週次推移
   if(trendChart)trendChart.destroy();
-  const labels=trendData.map(d=>d.date);
+  const labels=trendData.map(d=>d.date||d.week||'');
   const vals=trendData.map(d=>d.total);
+  // X軸ラベルを MM/DD 形式に変換
+  const shortLabels=labels.map(d=>{
+    if(!d)return'';
+    const parts=d.split('-');
+    return parts.length>=3?`${parseInt(parts[1])}/${parseInt(parts[2])}`:d;
+  });
   trendChart=new Chart(document.getElementById('trendChart'),{
     type:'line',
-    data:{labels,datasets:[{label:'総資産',data:vals,borderColor:'#58a6ff',backgroundColor:'rgba(88,166,255,.1)',tension:.3,fill:true,pointRadius:4,pointBackgroundColor:'#58a6ff'}]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#8b949e',font:{size:11}},grid:{color:'#30363d'}},y:{ticks:{color:'#8b949e',font:{size:11},callback:v=>'¥'+Math.round(v/10000)+'万'},grid:{color:'#30363d'}}}}
+    data:{labels:shortLabels,datasets:[{
+      label:'総資産',data:vals,
+      borderColor:'#58a6ff',backgroundColor:'rgba(88,166,255,.1)',
+      tension:.3,fill:true,pointRadius:3,pointBackgroundColor:'#58a6ff',
+      pointHoverRadius:6
+    }]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{callbacks:{label:ctx=>`¥${Math.round(ctx.parsed.y).toLocaleString('ja-JP')}`}}
+      },
+      scales:{
+        x:{ticks:{color:'#8b949e',font:{size:11},maxTicksLimit:12},grid:{color:'#30363d'}},
+        y:{ticks:{color:'#8b949e',font:{size:11},callback:v=>'¥'+Math.round(v/10000)+'万'},grid:{color:'#30363d'}}
+      }
+    }
   });
 
   // CGS集計（現金・MRFを除外）
@@ -963,30 +999,50 @@ function parseCSV(text){
   return lines.map(l=>{const cols=[];let cur='',inQ=false;for(let i=0;i<l.length;i++){if(l[i]==='"'){inQ=!inQ;}else if(l[i]===','&&!inQ){cols.push(cur.trim());cur='';}else cur+=l[i];}cols.push(cur.trim());return cols;});
 }
 function cleanNum(s){if(!s)return 0;return parseFloat(String(s).replace(/[,\s+¥$\+]/g,''))||0;}
+// CSV取込時の重複候補ログ
+let duplicateLog=[];
+
+function normalizeName(s){
+  // 英数字の全角→半角、スペース除去、小文字化で比較
+  return s.replace(/[Ａ-Ｚａ-ｚ０-９]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0))
+    .replace(/\s+/g,'').toLowerCase();
+}
+
 function upsertAsset(entry){
-  // ティッカーがあればティッカー優先照合、なければ名前で照合
+  // ① ティッカー完全一致（最優先）
   let idx=-1;
-  if(entry.ticker){
-    idx=assets.findIndex(a=>a.ticker&&a.ticker===entry.ticker&&a.category===entry.category);
+  if(entry.ticker&&entry.ticker.trim()){
+    idx=assets.findIndex(a=>a.ticker&&a.ticker.trim()===entry.ticker.trim()&&a.category===entry.category);
   }
+  // ② 名前の完全一致
   if(idx<0){
-    // 名前の前方一致で照合（moomooと野村で名前が微妙に違う場合に対応）
-    idx=assets.findIndex(a=>a.category===entry.category&&(
-      a.name===entry.name ||
-      a.name.startsWith(entry.name.slice(0,8)) ||
-      entry.name.startsWith(a.name.slice(0,8))
-    ));
+    idx=assets.findIndex(a=>a.category===entry.category&&a.name===entry.name);
   }
+  // ③ 正規化した名前で照合（英字/日本語の揺れ、スペース違いに対応）
+  if(idx<0){
+    const normEntry=normalizeName(entry.name);
+    idx=assets.findIndex(a=>a.category===entry.category&&normalizeName(a.name)===normEntry);
+  }
+  // ④ 前方一致（10文字）
+  if(idx<0&&entry.name.length>=6){
+    const prefix=normalizeName(entry.name.slice(0,10));
+    idx=assets.findIndex(a=>a.category===entry.category&&normalizeName(a.name).startsWith(prefix));
+  }
+
   if(idx>=0){
-    // 既存のタグ・テーマ・口座メモは上書きしない（CSV側が空の場合）
     const existing=assets[idx];
+    // 名前が違う場合は重複候補としてログ
+    if(existing.name!==entry.name){
+      duplicateLog.push({csvName:entry.name, existingName:existing.name, action:'統合'});
+    }
+    // タグ・テーマ・決算日は既存を優先（手動設定を守る）
     assets[idx]={
       ...existing,
       ...entry,
-      tag: entry.tag||existing.tag||'',
-      sector: entry.sector||existing.sector||'',
-      earnings: entry.earnings||existing.earnings||'',
-      note: entry.note||existing.note||'',
+      name: existing.name, // 既存の名前を維持
+      tag: existing.tag||entry.tag||'',
+      sector: existing.sector||entry.sector||'',
+      earnings: existing.earnings||entry.earnings||'',
     };
   }else{
     assets.push(entry);
@@ -1004,7 +1060,14 @@ function processCSVFile(file,type){
       else if(type==='moomoo-fund')count=importMoomooFund(text);
       else if(type==='nomura')count=importNomura(text);
       save();render();
-      const res=document.getElementById('result-'+type);res.className='csv-result ok';res.textContent=`✅ ${count}件を取込みました`;
+      const res=document.getElementById('result-'+type);res.className='csv-result ok';
+      let msg=`✅ ${count}件を取込みました`;
+      if(duplicateLog.length>0){
+        msg+=`\n\n⚠️ 以下の銘柄は名前の揺れにより既存銘柄に統合しました:\n`;
+        msg+=duplicateLog.map(d=>`  「${d.csvName}」→「${d.existingName}」`).join('\n');
+        duplicateLog=[];
+      }
+      res.textContent=msg;res.style.whiteSpace='pre-wrap';
     }catch(err){const res=document.getElementById('result-'+type);res.className='csv-result err';res.textContent='⚠️ '+err.message;}
   };
   reader.readAsText(file,'UTF-8');
@@ -1068,6 +1131,31 @@ async function fetchEarnings(sym){
   }catch{}
   return'';
 }
+async function doFundLookup(){
+  const code=document.getElementById('fFundCode').value.trim();
+  if(!code){alert('投信コードを入力してください');return;}
+  const res=document.getElementById('fundLookupRes');
+  res.className='lres show';res.innerHTML='<span class="spin"></span>基準価額を取得中...';
+  try{
+    // Yahoo Financeで投信コード（例: 03311187 → 03311187.T）を試す
+    const syms=[code+'.T', code, code+'.OS'];
+    let found=null;
+    for(const sym of syms){
+      try{
+        const d=await fetchQuote(sym);
+        if(d&&d.price>0){found={...d,sym};break;}
+      }catch{}
+    }
+    if(found){
+      document.getElementById('fNameB').value=found.name||code;
+      document.getElementById('fValB').value=Math.round(found.price);
+      res.innerHTML=`✅ <b>${found.name}</b> 基準価額: ¥${Math.round(found.price).toLocaleString()}`;
+    }else{
+      res.innerHTML='⚠️ 自動取得できませんでした。<br>手入力してください。（Yahoo Financeで対応していない投信があります）';
+    }
+  }catch(e){res.innerHTML='⚠️ 取得失敗: '+e.message;}
+}
+
 async function doLookup(){
   const ticker=document.getElementById('fTicker').value.trim();if(!ticker){alert('コードを入力してください');return;}
   const res=document.getElementById('lookupRes');res.className='lres show';res.innerHTML='<span class="spin"></span>取得中...';
@@ -1128,7 +1216,7 @@ async function refreshAll(){
   if(bar)bar.style.display='none';
   if(prog)prog.textContent=`完了！ 成功:${ok}件 失敗:${ng}件`;
   // 週次記録を更新
-  recordWeeklyTrend();
+  recordTrend();
   alert(`株価更新完了！ 成功:${ok}件 失敗:${ng}件`);
 }
 
@@ -1186,6 +1274,7 @@ function openEdit(i){
     document.getElementById('fNameB').value=a.name;
     document.getElementById('fValB').value=a.value;
     document.getElementById('fCostB').value=a.cost||'';
+    document.getElementById('fFundCode').value=a.fundCode||'';
     document.getElementById('fTagB').value=a.tag||'';
     const sb=document.getElementById('fSectorB');
     if(sb){sb.innerHTML='<option value="">未分類</option>'+themes.map(t=>`<option value="${t}">${t}</option>`).join('');sb.value=a.sector||'';}
@@ -1205,6 +1294,8 @@ function onCatChange(){
   document.getElementById('fundTagSec').style.display=cat==='fund'?'block':'none';
   const fundCostField=document.getElementById('fundCostField');
   if(fundCostField)fundCostField.style.display=cat==='fund'?'block':'none';
+  const fundLookupField=document.getElementById('fundLookupField');
+  if(fundLookupField)fundLookupField.style.display=cat==='fund'?'block':'none';
   const fValBLabel=document.getElementById('fValBLabel');
   if(fValBLabel)fValBLabel.textContent=cat==='fund'?'現在価額 ¥':'金額 ¥';
   if(cat==='jp'||cat==='us')setMkt(cat);
@@ -1242,7 +1333,8 @@ function doSave(){
     const costB=cat==='fund'?(parseFloat(document.getElementById('fCostB').value)||val):val;
     const tagB=cat==='fund'?(document.getElementById('fTagB').value||''):'';
     const sectorB=cat==='fund'?(document.getElementById('fSectorB').value||''):'';
-    entry={name,category:cat,cost:costB,value:val,note,earnings:'',tag:tagB,sector:sectorB};
+    const fundCode=cat==='fund'?(document.getElementById('fFundCode').value.trim()||''):'';
+    entry={name,category:cat,cost:costB,value:val,note,earnings:'',tag:tagB,sector:sectorB,fundCode};
   }else{
     const name=document.getElementById('fNameC').value.trim();if(!name){alert('名前を入力してください');return;}
     const tagC=document.getElementById('fTagC').value||'';
@@ -1297,7 +1389,7 @@ document.getElementById('policyModal').addEventListener('click',e=>{if(e.target=
 
 renderPolicy();
 updateSectorDropdown();
-recordWeeklyTrend();
+recordTrend();
 save();render();
 </script>
 </body>
