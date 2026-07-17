@@ -169,6 +169,7 @@ tr:hover td{background:var(--sf2);}
   <div class="logo">MY<span>資産</span></div>
   <div class="hdr-right">
     <span class="hdate" id="hdate"></span>
+    <span style="font-size:11px;color:var(--tx2);padding:4px 8px;background:var(--sf2);border:1px solid var(--bd);border-radius:6px;" id="fxDisplay">為替取得中...</span>
     <button class="hbtn" onclick="refreshAll()">🔄 株価一括更新</button>
     <button class="hbtn" onclick="openThemeSettings()">⚙️ テーマ設定</button>
     <button class="hbtn hbtn-ac" onclick="openGoal()">🎯 目標設定</button>
@@ -230,11 +231,11 @@ tr:hover td{background:var(--sf2);}
         <table>
           <thead>
             <tr>
-              <th onclick="sortBy('name')">銘柄名 / ティッカー<span class="sort-icon" id="sh-name">↕</span></th>
+              <th onclick="sortBy('name')">銘柄名<span class="sort-icon" id="sh-name">↕</span></th>
+              <th onclick="sortBy('ticker')">ティッカー<span class="sort-icon" id="sh-ticker">↕</span></th>
               <th onclick="sortBy('category')">区分<span class="sort-icon" id="sh-category">↕</span></th>
               <th onclick="sortBy('note')">口座<span class="sort-icon" id="sh-note">↕</span></th>
               <th onclick="sortBy('tag')">タグ<span class="sort-icon" id="sh-tag">↕</span></th>
-              <th onclick="sortBy('shares')">数量<span class="sort-icon" id="sh-shares">↕</span></th>
               <th onclick="sortBy('cost')">取得価額<span class="sort-icon" id="sh-cost">↕</span></th>
               <th onclick="sortBy('value')">現在価額<span class="sort-icon" id="sh-value">↕</span></th>
               <th onclick="sortBy('pnl')">損益<span class="sort-icon" id="sh-pnl">↕</span></th>
@@ -438,7 +439,14 @@ tr:hover td{background:var(--sf2);}
         <div class="lres" id="fundLookupRes"></div>
       </div>
       <div class="field" id="fundCostField" style="display:none;"><label>取得価額（購入金額） ¥</label><input id="fCostB" type="number" placeholder="900000"></div>
-      <div class="field"><label id="fValBLabel">金額 ¥</label><input id="fValB" type="number" placeholder="1000000"></div>
+      <div id="fundUnitsField" style="display:none;">
+        <div class="frow">
+          <div class="field"><label>保有口数</label><input id="fUnits" type="number" placeholder="100000" oninput="calcFundValue()"></div>
+          <div class="field"><label>基準価額（1万口あたり ¥）</label><input id="fNavPrice" type="number" placeholder="15000" oninput="calcFundValue()"></div>
+        </div>
+        <div class="cbox" id="fundCalcBox" style="display:none;"></div>
+      </div>
+      <div class="field"><label id="fValBLabel">現在価額 ¥（口数×基準価額で自動入力）</label><input id="fValB" type="number" placeholder="1000000"></div>
       <div id="fundTagSec" style="display:none;">
         <div class="field"><label>タグ（投資スタイル）</label>
           <select id="fTagB"><option value="">未分類</option><option value="core">コア</option><option value="growth">グロース</option><option value="satellite">サテライト</option></select>
@@ -857,8 +865,8 @@ function renderTable(){
   tbody.innerHTML=shown.map(a=>{
     const ri=assets.indexOf(a),pnl=a.value-a.cost,pct=a.cost>0?((pnl/a.cost)*100).toFixed(1):0;
     const qty=a.shares&&a.shares>0?`${a.shares}${a.category==='fund'?'口':'株'}`:'—';
-    const canRef=(a.category==='jp'||a.category==='us')&&a.ticker;
-    return`<tr><td><span class="an">${a.name}</span>${a.ticker?`<span class="tkr">${a.ticker}</span>`:''}</td><td><span class="badge ${bc[a.category]}">${catLabel[a.category]}</span></td><td style="font-size:11px;color:var(--tx2);">${a.note||'—'}</td><td>${tagBadge(a.tag||'')}${a.sector?`<span style="font-size:10px;color:var(--tx2);margin-left:3px;">${a.sector}</span>`:''}</td><td>${qty}</td><td>${fmt(a.cost)}</td><td>${fmt(a.value)}</td><td class="${pcls(pnl)}">${sign(pnl)}${fmt(pnl)}<br><small>${sign(pnl)}${pct}%</small></td><td>${earningsLabel(a.earnings||'')}</td><td style="white-space:nowrap;">${canRef?`<button class="ib rf" onclick="refreshOne(${ri})">更新</button>`:''}<button class="ib ed" onclick="openEdit(${ri})">編集</button><button class="ib" onclick="delA(${ri})">削除</button></td></tr>`;
+    const canRef=((a.category==='jp'||a.category==='us')&&a.ticker)||(a.category==='crypto'&&a.name);
+    return`<tr><td><span class="an">${a.name}</span></td><td style="font-family:monospace;font-size:11px;color:var(--ac);">${a.ticker||'—'}</td><td><span class="badge ${bc[a.category]}">${catLabel[a.category]}</span></td><td style="font-size:11px;color:var(--tx2);">${a.note||'—'}</td><td>${tagBadge(a.tag||'')}${a.sector?`<span style="font-size:10px;color:var(--tx2);margin-left:3px;">${a.sector}</span>`:''}</td><td>${fmt(a.cost)}</td><td>${fmt(a.value)}</td><td class="${pcls(pnl)}">${sign(pnl)}${fmt(pnl)}<br><small>${sign(pnl)}${pct}%</small></td><td>${earningsLabel(a.earnings||'')}</td><td style="white-space:nowrap;">${canRef?`<button class="ib rf" onclick="refreshOne(${ri})">更新</button>`:''}<button class="ib ed" onclick="openEdit(${ri})">編集</button><button class="ib" onclick="delA(${ri})">削除</button></td></tr>`;
   }).join('');
 }
 
@@ -1119,10 +1127,37 @@ async function fetchQuote(sym){
   if(!r.ok)throw new Error(`HTTP ${r.status}`);
   const d=await r.json();if(d.error)throw new Error(d.error);return d;
 }
+// グローバル為替レート（起動時・更新時に自動取得）
+let currentFx = parseFloat(localStorage.getItem('lastFx')||String(FX));
+
 async function fetchFx(){
-  try{const d=await fetchQuote('USDJPY=X');if(d.price>100){localStorage.setItem('lastFx',d.price.toFixed(1));return d.price;}}catch{}
-  try{const r=await fetch('https://api.frankfurter.app/latest?from=USD&to=JPY',{signal:AbortSignal.timeout(8000)});if(r.ok){const d=await r.json();if(d?.rates?.JPY){localStorage.setItem('lastFx',d.rates.JPY.toFixed(1));return d.rates.JPY;}}}catch{}
-  return FX;
+  try{
+    const d=await fetchQuote('USDJPY=X');
+    if(d.price>100){
+      currentFx=d.price;
+      localStorage.setItem('lastFx',d.price.toFixed(2));
+      updateFxDisplay();
+      return d.price;
+    }
+  }catch{}
+  try{
+    const r=await fetch('https://api.frankfurter.app/latest?from=USD&to=JPY',{signal:AbortSignal.timeout(8000)});
+    if(r.ok){
+      const d=await r.json();
+      if(d?.rates?.JPY){
+        currentFx=d.rates.JPY;
+        localStorage.setItem('lastFx',d.rates.JPY.toFixed(2));
+        updateFxDisplay();
+        return d.rates.JPY;
+      }
+    }
+  }catch{}
+  return currentFx;
+}
+
+function updateFxDisplay(){
+  const el=document.getElementById('fxDisplay');
+  if(el)el.textContent=`$1 = ¥${currentFx.toFixed(1)}`;
 }
 async function fetchEarnings(sym){
   try{
@@ -1131,6 +1166,18 @@ async function fetchEarnings(sym){
   }catch{}
   return'';
 }
+function calcFundValue(){
+  const units=parseFloat(document.getElementById('fUnits').value)||0;
+  const nav=parseFloat(document.getElementById('fNavPrice').value)||0;
+  const calcBox=document.getElementById('fundCalcBox');
+  if(!units&&!nav){calcBox.style.display='none';return;}
+  // 投信の基準価額は1万口あたりなので÷10000
+  const val=Math.round(units*nav/10000);
+  document.getElementById('fValB').value=val;
+  calcBox.style.display='block';
+  calcBox.innerHTML=`${units.toLocaleString()}口 × ¥${nav.toLocaleString()} ÷ 10,000 = <b>¥${val.toLocaleString()}</b>`;
+}
+
 async function doFundLookup(){
   const code=document.getElementById('fFundCode').value.trim();
   if(!code){alert('投信コードを入力してください');return;}
@@ -1148,8 +1195,9 @@ async function doFundLookup(){
     }
     if(found){
       document.getElementById('fNameB').value=found.name||code;
-      document.getElementById('fValB').value=Math.round(found.price);
-      res.innerHTML=`✅ <b>${found.name}</b> 基準価額: ¥${Math.round(found.price).toLocaleString()}`;
+      document.getElementById('fNavPrice').value=Math.round(found.price);
+      calcFundValue();
+      res.innerHTML=`✅ <b>${found.name}</b> 基準価額: ¥${Math.round(found.price).toLocaleString()}（口数を入力すると現在価額が自動計算されます）`;
     }else{
       res.innerHTML='⚠️ 自動取得できませんでした。<br>手入力してください。（Yahoo Financeで対応していない投信があります）';
     }
@@ -1186,7 +1234,53 @@ async function doWatchLookup(){
   }catch(e){res.innerHTML='⚠️ 取得失敗: '+e.message;}
 }
 async function refreshOne(i){
-  const a=assets[i];if(!a.ticker)return;
+  const a=assets[i];
+
+  // 仮想通貨はCoinGecko経由で更新
+  if(a.category==='crypto'&&a.name){
+    try{
+      const COIN_MAP_REV={
+        'bitcoin':'bitcoin','ビットコイン':'bitcoin','btc':'bitcoin',
+        'ethereum':'ethereum','イーサリアム':'ethereum','eth':'ethereum',
+        'ripple':'ripple','xrp':'ripple','リップル':'ripple',
+        'solana':'solana','sol':'solana',
+        'dogecoin':'dogecoin','doge':'dogecoin',
+        'binancecoin':'binancecoin','bnb':'binancecoin',
+      };
+      // ticker or name から CoinGecko ID を推定
+      const key=(a.ticker||a.name).toLowerCase().replace(/\s+/g,'');
+      const coinId=COIN_MAP_REV[key]||a.ticker||key;
+      const r=await fetch(`/.netlify/functions/quote?sym=CRYPTO:${encodeURIComponent(coinId)}`,{signal:AbortSignal.timeout(12000)});
+      if(r.ok){
+        const d=await r.json();
+        if(d.price&&d.price>0){
+          assets[i].value=Math.round(d.price);
+          assets[i].currentPrice=d.price;
+          save();render();return;
+        }
+      }
+    }catch(e){console.warn('crypto update failed',e);}
+    return;
+  }
+
+  // 投信はfundCodeで更新
+  if(a.category==='fund'&&a.fundCode){
+    try{
+      const syms=[a.fundCode+'.T',a.fundCode,a.fundCode+'.OS'];
+      for(const sym of syms){
+        try{
+          const d=await fetchQuote(sym);
+          if(d&&d.price>0){
+            assets[i].currentPrice=Math.round(d.price);
+            if(a.shares>0)assets[i].value=Math.round(a.shares*d.price/10000);
+            save();render();return;
+          }
+        }catch{}
+      }
+    }catch(e){console.warn('投信更新失敗:',e);}
+    return;
+  }
+  if(!a.ticker)return;
   try{
     const sym=a.category==='jp'?a.ticker+'.T':a.ticker.toUpperCase();
     const d=await fetchQuote(sym);
@@ -1199,18 +1293,28 @@ async function refreshOne(i){
   }catch(e){alert('「'+a.name+'」の更新失敗: '+e.message);}
 }
 async function refreshAll(){
-  const tgts=assets.filter(a=>(a.category==='jp'||a.category==='us')&&a.ticker);
-  if(!tgts.length){alert('更新できる銘柄がありません');return;}
+  const tgts=assets.filter(a=>
+    ((a.category==='jp'||a.category==='us')&&a.ticker)||
+    (a.category==='crypto'&&a.name)||
+    (a.category==='fund'&&a.fundCode)
+  );
+  if(!tgts.length){alert('更新できる銘柄がありません（ティッカー・コード未設定）');return;}
   if(!confirm(tgts.length+'件の株価を更新します'))return;
   const prog=document.getElementById('refresh-progress'),bar=document.getElementById('progress-bar'),fill=document.getElementById('progress-fill');
   if(bar)bar.style.display='block';
   let ok=0,ng=0;
   for(let i=0;i<assets.length;i++){
-    if((assets[i].category==='jp'||assets[i].category==='us')&&assets[i].ticker){
+    const a=assets[i];
+    const shouldUpdate=(
+      ((a.category==='jp'||a.category==='us')&&a.ticker)||
+      (a.category==='crypto'&&a.name)||
+      (a.category==='fund'&&a.fundCode)
+    );
+    if(shouldUpdate){
       if(prog)prog.textContent=`更新中... ${ok+ng+1}/${tgts.length}件`;
       if(fill)fill.style.width=((ok+ng+1)/tgts.length*100)+'%';
       try{await refreshOne(i);ok++;}catch{ng++;}
-      await new Promise(r=>setTimeout(r,400));
+      await new Promise(r=>setTimeout(r,500));
     }
   }
   if(bar)bar.style.display='none';
@@ -1249,7 +1353,7 @@ function renderWatch(){
 // モーダル
 function openAdd(){
   editIdx=null;document.getElementById('modalTitle').textContent='資産を追加';
-  ['fTicker','fName','fShares','fAvgCost','fPrice','fFx','fNameB','fValB','fNameC','fCostC','fValC','fEarnings'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+  ['fTicker','fName','fShares','fAvgCost','fPrice','fFx','fNameB','fValB','fCostB','fFundCode','fUnits','fNavPrice','fNameC','fCostC','fValC','fEarnings'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
   document.getElementById('fCat').value='jp';document.getElementById('fNote').value='野村';
   document.getElementById('fTag').value='';document.getElementById('fSector').value='';
   document.getElementById('calcBox').style.display='none';document.getElementById('lookupRes').className='lres';
@@ -1275,6 +1379,8 @@ function openEdit(i){
     document.getElementById('fValB').value=a.value;
     document.getElementById('fCostB').value=a.cost||'';
     document.getElementById('fFundCode').value=a.fundCode||'';
+    document.getElementById('fUnits').value=a.shares||'';
+    document.getElementById('fNavPrice').value=a.currentPrice||'';
     document.getElementById('fTagB').value=a.tag||'';
     const sb=document.getElementById('fSectorB');
     if(sb){sb.innerHTML='<option value="">未分類</option>'+themes.map(t=>`<option value="${t}">${t}</option>`).join('');sb.value=a.sector||'';}
@@ -1296,6 +1402,8 @@ function onCatChange(){
   if(fundCostField)fundCostField.style.display=cat==='fund'?'block':'none';
   const fundLookupField=document.getElementById('fundLookupField');
   if(fundLookupField)fundLookupField.style.display=cat==='fund'?'block':'none';
+  const fundUnitsField=document.getElementById('fundUnitsField');
+  if(fundUnitsField)fundUnitsField.style.display=cat==='fund'?'block':'none';
   const fValBLabel=document.getElementById('fValBLabel');
   if(fValBLabel)fValBLabel.textContent=cat==='fund'?'現在価額 ¥':'金額 ¥';
   if(cat==='jp'||cat==='us')setMkt(cat);
@@ -1307,7 +1415,7 @@ function setMkt(m){
   mkt=m;['jp','us'].forEach(k=>{const e=document.getElementById('btn'+k.toUpperCase());if(e)e.classList.toggle('active',k===m);});
   document.getElementById('tickerLbl').textContent=m==='jp'?'銘柄コード（例: 7203）':'ティッカー（例: AAPL）';
   document.getElementById('fxField').style.display=m==='us'?'block':'none';
-  if(m==='us'&&!document.getElementById('fFx').value)document.getElementById('fFx').value='159.5';
+  if(m==='us'&&!document.getElementById('fFx').value)document.getElementById('fFx').value=currentFx.toFixed(1);
   document.getElementById('fCat').value=m;
 }
 function calcP(){
@@ -1334,7 +1442,9 @@ function doSave(){
     const tagB=cat==='fund'?(document.getElementById('fTagB').value||''):'';
     const sectorB=cat==='fund'?(document.getElementById('fSectorB').value||''):'';
     const fundCode=cat==='fund'?(document.getElementById('fFundCode').value.trim()||''):'';
-    entry={name,category:cat,cost:costB,value:val,note,earnings:'',tag:tagB,sector:sectorB,fundCode};
+    const units=cat==='fund'?(parseFloat(document.getElementById('fUnits').value)||0):0;
+    const navPrice=cat==='fund'?(parseFloat(document.getElementById('fNavPrice').value)||0):0;
+    entry={name,category:cat,cost:costB,value:val,note,earnings:'',tag:tagB,sector:sectorB,fundCode,shares:units,currentPrice:navPrice};
   }else{
     const name=document.getElementById('fNameC').value.trim();if(!name){alert('名前を入力してください');return;}
     const tagC=document.getElementById('fTagC').value||'';
@@ -1362,7 +1472,7 @@ function setWMkt(m){
   wMkt=m;['jp','us'].forEach(k=>{const e=document.getElementById('wbtn'+k.toUpperCase());if(e)e.classList.toggle('active',k===m);});
   document.getElementById('wTickerLbl').textContent=m==='jp'?'銘柄コード（例: 7203）':'ティッカー（例: AAPL）';
   document.getElementById('wFxField').style.display=m==='us'?'block':'none';
-  if(m==='us'&&!document.getElementById('wFx').value)document.getElementById('wFx').value='159.5';
+  if(m==='us'&&!document.getElementById('wFx').value)document.getElementById('wFx').value=currentFx.toFixed(1);
 }
 function doWatchSave(){
   const name=document.getElementById('wName').value.trim()||document.getElementById('wTicker').value.trim();
@@ -1391,6 +1501,8 @@ renderPolicy();
 updateSectorDropdown();
 recordTrend();
 save();render();
+// 起動時に為替を自動取得
+fetchFx().then(fx=>{currentFx=fx;updateFxDisplay();});
 </script>
 </body>
 </html>
