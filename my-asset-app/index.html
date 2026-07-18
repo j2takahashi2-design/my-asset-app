@@ -236,9 +236,11 @@ tr:hover td{background:var(--sf2);}
               <th onclick="sortBy('category')">区分<span class="sort-icon" id="sh-category">↕</span></th>
               <th onclick="sortBy('note')">口座<span class="sort-icon" id="sh-note">↕</span></th>
               <th onclick="sortBy('tag')">タグ<span class="sort-icon" id="sh-tag">↕</span></th>
+              <th onclick="sortBy('shares')">数量<span class="sort-icon" id="sh-shares">↕</span></th>
               <th onclick="sortBy('cost')">取得価額<span class="sort-icon" id="sh-cost">↕</span></th>
               <th onclick="sortBy('value')">現在価額<span class="sort-icon" id="sh-value">↕</span></th>
               <th onclick="sortBy('pnl')">損益<span class="sort-icon" id="sh-pnl">↕</span></th>
+              <th onclick="sortBy('updatedAt')">更新日<span class="sort-icon" id="sh-updatedAt">↕</span></th>
               <th>次回決算</th>
               <th>操作</th>
             </tr>
@@ -264,8 +266,15 @@ tr:hover td{background:var(--sf2);}
 
   <!-- ANALYSIS -->
   <div class="page" id="page-analysis">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+      <div>
+        <div style="font-size:15px;font-weight:600;margin-bottom:4px;">分析</div>
+        <div style="font-size:12px;color:var(--tx2);">資産内容を精査・確認した後に「今日の資産を記録」してください</div>
+      </div>
+      <button class="add-btn" onclick="manualRecordTrend()" style="background:var(--ac2);border-color:var(--ac2);">📌 今日の資産を記録する</button>
+    </div>
     <div class="charts-row-wide">
-      <div class="cc"><div class="cl">週次総資産推移</div><div class="cw-tall"><canvas id="trendChart"></canvas></div></div>
+      <div class="cc"><div class="cl">資産推移</div><div class="cw-tall"><canvas id="trendChart"></canvas></div></div>
     </div>
     <div class="seg-grid">
       <div class="seg-card">
@@ -684,16 +693,35 @@ function savePolicy(){policyText=document.getElementById('policyInput').value.tr
 
 // 週次記録（同じ週は1回だけ）
 function recordTrend(){
+  // 自動記録（起動時・更新時）は同日スキップ
   const total=assets.reduce((s,a)=>s+a.value,0);
   if(total===0)return;
   const now=new Date();
-  const dateKey=now.toISOString().slice(0,10); // YYYY-MM-DD
+  const dateKey=now.toISOString().slice(0,10);
   const last=trendData[trendData.length-1];
-  // 同じ日はスキップ（1日1回まで）
   if(last&&last.date===dateKey)return;
-  trendData.push({date:dateKey,total});
+  trendData.push({date:dateKey,total,auto:true});
   if(trendData.length>365)trendData=trendData.slice(-365);
   save();
+}
+
+function manualRecordTrend(){
+  const total=assets.reduce((s,a)=>s+a.value,0);
+  if(total===0){alert('資産データがありません');return;}
+  const now=new Date();
+  const dateKey=now.toISOString().slice(0,10);
+  // 同日の記録があれば上書き確認
+  const existIdx=trendData.findIndex(d=>d.date===dateKey);
+  if(existIdx>=0){
+    if(!confirm(`本日（${dateKey}）の記録を上書きしますか？\n現在: ¥${Math.round(trendData[existIdx].total).toLocaleString()} → ¥${Math.round(total).toLocaleString()}`))return;
+    trendData[existIdx]={date:dateKey,total,auto:false};
+  }else{
+    trendData.push({date:dateKey,total,auto:false});
+  }
+  if(trendData.length>365)trendData=trendData.slice(-365);
+  save();
+  renderAnalysis();
+  alert(`✅ ${dateKey} の資産 ¥${Math.round(total).toLocaleString()} を記録しました！`);
 }
 
 function showPage(id,btn){
@@ -866,7 +894,7 @@ function renderTable(){
     const ri=assets.indexOf(a),pnl=a.value-a.cost,pct=a.cost>0?((pnl/a.cost)*100).toFixed(1):0;
     const qty=a.shares&&a.shares>0?`${a.shares}${a.category==='fund'?'口':'株'}`:'—';
     const canRef=((a.category==='jp'||a.category==='us')&&a.ticker)||(a.category==='crypto'&&a.name);
-    return`<tr><td><span class="an">${a.name}</span></td><td style="font-family:monospace;font-size:11px;color:var(--ac);">${a.ticker||'—'}</td><td><span class="badge ${bc[a.category]}">${catLabel[a.category]}</span></td><td style="font-size:11px;color:var(--tx2);">${a.note||'—'}</td><td>${tagBadge(a.tag||'')}${a.sector?`<span style="font-size:10px;color:var(--tx2);margin-left:3px;">${a.sector}</span>`:''}</td><td>${fmt(a.cost)}</td><td>${fmt(a.value)}</td><td class="${pcls(pnl)}">${sign(pnl)}${fmt(pnl)}<br><small>${sign(pnl)}${pct}%</small></td><td>${earningsLabel(a.earnings||'')}</td><td style="white-space:nowrap;">${canRef?`<button class="ib rf" onclick="refreshOne(${ri})">更新</button>`:''}<button class="ib ed" onclick="openEdit(${ri})">編集</button><button class="ib" onclick="delA(${ri})">削除</button></td></tr>`;
+    return`<tr><td><span class="an">${a.name}</span></td><td style="font-family:monospace;font-size:11px;color:var(--ac);">${a.ticker||'—'}</td><td><span class="badge ${bc[a.category]}">${catLabel[a.category]}</span></td><td style="font-size:11px;color:var(--tx2);">${a.note||'—'}</td><td>${tagBadge(a.tag||'')}${a.sector?`<span style="font-size:10px;color:var(--tx2);margin-left:3px;">${a.sector}</span>`:''}</td><td style="font-size:12px;">${a.shares&&a.shares>0?`${a.shares}${a.category==='fund'?'口':'株'}`:'—'}</td><td>${fmt(a.cost)}</td><td>${fmt(a.value)}</td><td class="${pcls(pnl)}">${sign(pnl)}${fmt(pnl)}<br><small>${sign(pnl)}${pct}%</small></td><td style="font-size:10px;color:var(--tx2);white-space:nowrap;">${a.updatedAt?a.updatedAt.slice(0,10):'—'}</td><td>${earningsLabel(a.earnings||'')}</td><td style="white-space:nowrap;">${canRef?`<button class="ib rf" onclick="refreshOne(${ri})">更新</button>`:''}<button class="ib ed" onclick="openEdit(${ri})">編集</button><button class="ib" onclick="delA(${ri})">削除</button></td></tr>`;
   }).join('');
 }
 
@@ -1051,8 +1079,10 @@ function upsertAsset(entry){
       tag: existing.tag||entry.tag||'',
       sector: existing.sector||entry.sector||'',
       earnings: existing.earnings||entry.earnings||'',
+      updatedAt: new Date().toISOString(),
     };
   }else{
+    entry.updatedAt=new Date().toISOString();
     assets.push(entry);
   }
 }
@@ -1288,6 +1318,7 @@ async function refreshOne(i){
     if(a.category==='us'){fx=await fetchFx();pj=d.price*fx;assets[i].fxRate=parseFloat(fx.toFixed(1));}
     assets[i].currentPrice=a.category==='jp'?Math.round(d.price):parseFloat(d.price.toFixed(3));
     assets[i].value=Math.round(pj*(a.shares||1));
+    assets[i].updatedAt=new Date().toISOString();
     const earn=await fetchEarnings(sym);if(earn)assets[i].earnings=earn;
     save();render();
   }catch(e){alert('「'+a.name+'」の更新失敗: '+e.message);}
@@ -1450,6 +1481,7 @@ function doSave(){
     const tagC=document.getElementById('fTagC').value||'';
     entry={name,category:'crypto',cost:parseFloat(document.getElementById('fCostC').value)||0,value:parseFloat(document.getElementById('fValC').value)||0,note,earnings:'',tag:tagC,sector:''};
   }
+  entry.updatedAt=new Date().toISOString();
   if(editIdx!==null){assets[editIdx]=entry;}else{assets.push(entry);}
   save();closeModal();render();
 }
